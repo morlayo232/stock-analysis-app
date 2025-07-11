@@ -1,0 +1,34 @@
+name: Update Stock Database
+
+on:
+  schedule:
+    - cron: '23 23 * * *'  # 매일 08:00 KST 실행 (UTC 기준 23:00)
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.10'
+
+      - name: Install dependencies
+        run: |
+          pip install -r requirements.txt
+
+      - name: Run update script
+        run: |
+          python update_stock_database.py
+
+      - name: Commit updated CSV
+        run: |
+          git config --global user.name 'github-actions'
+          git config --global user.email 'github-actions@github.com'
+          git add filtered_stocks.csv
+          git commit -m "📊 자동 업데이트 $(date +'%Y-%m-%d %H:%M:%S')" || echo "No changes"
+          git push
