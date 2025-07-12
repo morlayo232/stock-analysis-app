@@ -143,3 +143,15 @@ try:
     st.sidebar.markdown(f"**📅 마지막 갱신:** {last_updated.strftime('%Y-%m-%d %H:%M:%S')}")
 except:
     st.sidebar.warning("CSV 파일을 찾을 수 없습니다.")
+# app.py 마지막 부분에 추가
+
+from update_stock_database import main as update_main
+
+if st.sidebar.button("Update Now"):
+    with st.spinner("업데이트 중입니다... 잠시만 기다려 주세요."):
+        try:
+            update_main()
+            st.success("업데이트가 성공적으로 완료되었습니다.")
+        except Exception as e:
+            st.error("업데이트 실패:")
+            st.exception(e)
