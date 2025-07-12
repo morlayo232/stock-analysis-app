@@ -1,54 +1,58 @@
+import yfinance as yf
 import pandas as pd
+import ta
 
-# ✅ filtered_stocks.csv 로드
-def load_filtered_data():
-    return pd.read_csv("filtered_stocks.csv")
+TOOLTIP_EXPLANATIONS = {
+    "RSI": "상대강도지수: 과매수/과매도 상태 판단 (70↑ 과매수, 30↓ 과매도)",
+    "EMA": "지수이동평균선: 최근 가격에 가중치를 둔 추세 지표",
+    "MACD": "이동평균 간 차이를 이용한 추세 반전 지표",
+    "PER": "주가수익비율: 수익 대비 주가 수준 (낮을수록 저평가)",
+    "PBR": "주가순자산비율: 자산 대비 주가 수준 (1보다 낮으면 저평가)",
+    "배당수익률": "연 배당금 ÷ 주가 = 배당 투자 수익률"
+}
 
-# ✅ 한국 주식 종목코드를 yfinance 형식으로 변환
-def get_yf_ticker(code, market):
-    """
-    code: 종목코드 (예: "005930")
-    market: "코스피" 또는 "코스닥"
-    return: "005930.KS" or "035420.KQ"
-    """
-    if market == "코스피":
-        return f"{code}.KS"
-    elif market == "코스닥":
-        return f"{code}.KQ"
-    return code
+# 주가 데이터 로드 (야후 파이낸스)
+def load_stock_price(ticker):
+    try:
+        stock = yf.Ticker(ticker)
+        df = stock.history(period="6mo")
+        df.reset_index(inplace=True)
+        if df.empty or len(df) < 10:
+            return pd.DataFrame()
+        df = df.rename(columns={"Date": "Date"})
+        return df
+    except:
+        return pd.DataFrame()
 
-# ✅ 투자 매력 점수 계산 함수
-def calculate_investment_score(row):
+# 기술 지표 계산
+def calculate_indicators(df):
+    df['EMA5'] = ta.trend.EMAIndicator(df['Close'], window=5).ema_indicator()
+    df['EMA20'] = ta.trend.EMAIndicator(df['Close'], window=20).ema_indicator()
+    df['RSI'] = ta.momentum.RSIIndicator(df['Close']).rsi()
+    macd = ta.trend.MACD(df['Close'])
+    df['MACD'] = macd.macd()
+    df['Signal'] = macd.macd_signal()
+    return df
+
+# 투자 성향별 점수 계산
+def calc_investment_score(df, style):
     score = 0
-    try:
-        score += (max(0, 100 - float(row["PER"]) * 4)) * 0.2     # 낮을수록 유리
-        score += (max(0, 100 - float(row["PBR"]) * 20)) * 0.2
-        score += float(row.get("ROE", 0)) * 0.3
-        score += float(row.get("배당률", 0)) * 1.5
-        score += float(row.get("기술점수", 0)) * 0.2
-        score += float(row.get("세력점수", 0)) * 0.1
-    except:
-        pass
-    return round(score, 2)
 
-# ✅ 투자 판단 요약 생성
-def get_advice(info, score):
-    advice = []
+    rsi = df['RSI'].iloc[-1]
+    macd = df['MACD'].iloc[-1]
+    signal = df['Signal'].iloc[-1]
+    ema5 = df['EMA5'].iloc[-1]
+    ema20 = df['EMA20'].iloc[-1]
 
-    try:
-        if float(info.get('RSI', 0)) > 70:
-            advice.append("⚠️ RSI 과매수 → 단기 조정 주의")
-        if float(info.get('MACD', 0)) > float(info.get('Signal', 0)):
-            advice.append("📈 MACD 상승 전환")
-        if float(info.get('세력점수', 0)) > 70:
-            advice.append("🧲 세력 매집 흔적 강함")
-        if score > 80:
-            advice.append("✅ 중장기 투자 매력 우수")
-        elif score > 60:
-            advice.append("📊 단기 접근 가능")
-        else:
-            advice.append("🔎 보류 또는 추가 분석 권장")
-    except:
-        advice.append("지표 부족으로 분석 제한")
+    if style == '공격적':
+        if rsi < 30: score += 10
+        if macd > signal: score += 10
+    elif style == '안정적':
+        if ema5 > ema20: score += 10
+        if rsi < 60: score += 5
+    elif style == '배당형':
+        # 배당 수익률은 filtered_stocks.csv에서 보조적으로 참조됨
+        score += 5
+        if rsi < 50: score += 5
 
-    return " / ".join(advice)
+    return float(score)
