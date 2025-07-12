@@ -1,6 +1,6 @@
 streamlit
-pandas
 yfinance
+pandas
 plotly
 ta
 beautifulsoup4
