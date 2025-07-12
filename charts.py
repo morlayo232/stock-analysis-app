@@ -1,4 +1,3 @@
-# charts.py
 import plotly.graph_objects as go
 
 def plot_stock_chart(df):
@@ -10,12 +9,15 @@ def plot_stock_chart(df):
     for i in range(1, len(df)):
         if df['EMA5'].iloc[i-1] < df['EMA20'].iloc[i-1] and df['EMA5'].iloc[i] > df['EMA20'].iloc[i]:
             fig.add_trace(go.Scatter(x=[df['Date'].iloc[i]], y=[df['Close'].iloc[i]], mode='markers',
-                                     marker_symbol='triangle-up', marker_color='green', marker_size=10, name='골든크로스'))
+                                     marker_symbol='triangle-up', marker_color='green', marker_size=10, name='골든크로스 매수'))
         elif df['EMA5'].iloc[i-1] > df['EMA20'].iloc[i-1] and df['EMA5'].iloc[i] < df['EMA20'].iloc[i]:
             fig.add_trace(go.Scatter(x=[df['Date'].iloc[i]], y=[df['Close'].iloc[i]], mode='markers',
-                                     marker_symbol='triangle-down', marker_color='red', marker_size=10, name='데드크로스'))
+                                     marker_symbol='triangle-down', marker_color='red', marker_size=10, name='데드크로스 매도'))
 
-    fig.update_layout(title='주가 + 이동평균 + 매수/매도 신호', xaxis_title='날짜', yaxis_title='가격', hovermode='x unified')
+    fig.update_layout(title='📈 주가 + 이동평균선 + 매수/매도 신호',
+                      xaxis_title='날짜',
+                      yaxis_title='가격',
+                      hovermode='x unified')
     return fig
 
 def plot_rsi_macd(df):
@@ -26,5 +28,5 @@ def plot_rsi_macd(df):
     fig.add_trace(go.Scatter(x=df['Date'], y=df['MACD'], name='MACD', line=dict(color='black')))
     fig.add_trace(go.Scatter(x=df['Date'], y=df['Signal'], name='Signal', line=dict(color='orange')))
 
-    fig.update_layout(title='RSI & MACD 분석', xaxis_title='날짜', hovermode='x unified')
+    fig.update_layout(title='📊 RSI & MACD 분석', xaxis_title='날짜', hovermode='x unified')
     return fig
