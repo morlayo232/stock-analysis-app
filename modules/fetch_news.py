@@ -18,4 +18,9 @@ def fetch_news_headlines(query, max_count=5):
     headlines = []
     for item in soup.select(".news_area")[:max_count]:
         title_tag = item.select_one("a.news_tit")
-        if title_tag
+        if title_tag:
+            title = title_tag.text.strip()
+            link = title_tag["href"]
+            headlines.append((title, link))
+
+    return headlines
