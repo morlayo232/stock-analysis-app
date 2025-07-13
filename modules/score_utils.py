@@ -1,30 +1,50 @@
-# modules/score_utils.py
-import pandas as pd
-from scipy.stats import zscore
+# ✅ /modules/score_utils.py
+import numpy as np
 
-def calc_base_score(df):
-    df[['PER', 'PBR', 'ROE']] = df[['PER', 'PBR', 'ROE']].astype(float)
-    
-    # 이상치 제거 (zscore 계산 안정화)
-    df = df[(df['PER'] > 0) & (df['PBR'] > 0) & (df['ROE'] > 0)]
-    df['PER_z'] = zscore(df['PER'])
-    df['PBR_z'] = zscore(df['PBR'])
-    df['ROE_z'] = zscore(df['ROE'])
+# 투자 점수 계산 함수
+# 스타일별 가중치를 다르게 적용하며, 스코어 누락 방지 및 안정성 보강
 
-    # 기본 점수 계산
-    df['base_score'] = -df['PER_z'] - df['PBR_z'] + df['ROE_z']
-    return df
+def calculate_final_score(row, style):
+    try:
+        per = float(row['PER'])
+        pbr = float(row['PBR'])
+        roe = float(row['ROE'])
+        dividend = float(row['배당률'])
+        rsi = float(row['RSI'])
+        macd = float(row['MACD'])
+        signal = float(row['Signal'])
+        volume = float(row['거래량'])
+        price = float(row['현재가'])
+        return_3m = float(row['3개월수익률'])
+    except:
+        return np.nan
 
-def apply_style_weight(df, style):
-    weight = {
-        '공격적': {'기술점수': 0.4, '세력점수': 0.3, 'base_score': 0.3},
-        '안정적': {'base_score': 0.6, '기술점수': 0.2, '세력점수': 0.2},
-        '배당형': {'base_score': 0.4, '배당률': 0.4, '세력점수': 0.2}
-    }
+    # 기본 정량 점수 (재무 지표 기반)
+    base_score = 0
+    if per > 0: base_score += max(0, 20 - per) * 0.5
+    if pbr > 0: base_score += max(0, 5 - pbr) * 1.0
+    base_score += roe * 0.8
+    base_score += dividend * 0.5
 
-    df['score'] = 0.0
-    for key, w in weight[style].items():
-        df[key] = pd.to_numeric(df[key], errors='coerce').fillna(0)
-        df['score'] += df[key] * w
+    # 기술적 점수
+    tech_score = 0
+    if rsi < 30: tech_score += 10
+    if macd > signal: tech_score += 10
+    if volume > 0 and price > 0:  # 거래대금
+        trade_amount = volume * price
+        if trade_amount > 1e9: tech_score += 5
 
-    return df
+    # 수익률
+    momentum_score = return_3m * 0.3 if return_3m > 0 else 0
+
+    # 스타일별 가중치
+    if style == '공격적':
+        total = base_score * 0.4 + tech_score * 0.4 + momentum_score * 0.2
+    elif style == '안정적':
+        total = base_score * 0.6 + tech_score * 0.2 + momentum_score * 0.2
+    elif style == '배당형':
+        total = base_score * 0.5 + dividend * 1.5 + tech_score * 0.2
+    else:
+        total = base_score + tech_score + momentum_score
+
+    return round(total, 2)
