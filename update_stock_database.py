@@ -1,4 +1,11 @@
-import yfinance as yf import pandas as pd import requests from bs4 import BeautifulSoup import time from modules import calculate_indicators
+import yfinance as yf
+import pandas as pd
+import requests
+from bs4 import BeautifulSoup
+import time
+from modules import calculate_indicators
+from scipy.stats import zscore
+import numpy as np
 
 --- KRX 리스트 불러오기 ---
 
