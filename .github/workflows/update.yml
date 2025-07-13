@@ -36,8 +36,4 @@ jobs:
         git pull origin main --rebase || true
         git add filtered_stocks.csv
         git commit -m "🔄 Auto-update filtered_stocks.csv ($(date +'%Y-%m-%d'))" || echo "Nothing to commit"
-<<<<<<< HEAD
         git push origin HEAD:main || echo "Nothing to push"
-=======
-        git push origin HEAD:main || echo "Nothing to push"
->>>>>>> 4a27f38146733656025b2d13e5b4cc219821c6cb

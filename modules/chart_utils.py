@@ -29,8 +29,4 @@ def plot_rsi_macd(df):
     fig.add_trace(go.Scatter(x=df["Date"], y=df["Signal"], name="Signal", line=dict(color="orange")))
 
     fig.update_layout(title="📊 RSI & MACD 분석", xaxis_title="날짜", hovermode="x unified")
-<<<<<<< HEAD
     return fig
-=======
-    return fig
->>>>>>> 4a27f38146733656025b2d13e5b4cc219821c6cb
