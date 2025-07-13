@@ -1,41 +1,46 @@
 name: Daily Update
 
-on:
-  schedule:
-    - cron: '0 23 * * *'  # 매일 오전 08시 (KST)
-  workflow_dispatch:
+on: schedule: - cron: '0 23 * * *'  # 매일 오전 08시 (KST) workflow_dispatch:
 
-jobs:
-  update:
-    runs-on: ubuntu-latest
+jobs: update: runs-on: ubuntu-latest
 
-    steps:
-    - name: Checkout repository
-      uses: actions/checkout@v3
+steps:
+- name: Checkout repository
+  uses: actions/checkout@v3
 
-    - name: Set up Python
-      uses: actions/setup-python@v4
-      with:
-        python-version: '3.10'
+- name: Set up Python
+  uses: actions/setup-python@v4
+  with:
+    python-version: '3.10'
 
-    - name: Install dependencies
-      run: |
-        pip install -r requirements.txt
+- name: Install dependencies
+  run: |
+    pip install -r requirements.txt
 
-    - name: Run update script
-      run: |
-        python update_stock_database.py
+- name: Run update script
+  run: |
+    python update_stock_database.py
 
-    - name: Commit and push changes
-      env:
-        GH_TOKEN: ${{ secrets.GH_PAT }}
-      run: |
-        git config --global user.name "github-actions"
-        git config --global user.email "github-actions@github.com"
-        git remote set-url origin https://x-access-token:${GH_TOKEN}@github.com/${{ github.repository }}.git
-        git stash
-        git pull origin main --rebase
-        git stash pop || true
-        git add filtered_stocks.csv
-        git commit -m "🔄 Auto-update filtered_stocks.csv ($(date +'%Y-%m-%d'))" || echo "Nothing to commit"
-        git push origin HEAD:main
+- name: Fix submodule config error
+  run: |
+    git config --file .gitmodules --remove-section submodule.backup/back\ up2 || true
+    git add .gitmodules || true
+
+- name: Force timestamp update
+  run: |
+    touch filtered_stocks.csv
+
+- name: Commit and push changes
+  env:
+    GH_TOKEN: ${{ secrets.GH_PAT }}
+  run: |
+    git config --global user.name "github-actions"
+    git config --global user.email "github-actions@github.com"
+    git remote set-url origin https://x-access-token:${GH_TOKEN}@github.com/${{ github.repository }}.git
+    git stash
+    git pull origin main --rebase
+    git stash pop || true
+    git add filtered_stocks.csv
+    git commit -m "🔄 Auto-update filtered_stocks.csv ($(date +'%Y-%m-%d'))" || echo "Nothing to commit"
+    git push origin HEAD:main
+
