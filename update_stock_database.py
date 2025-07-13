@@ -5,7 +5,7 @@ from modules.calculate_indicators import calculate_indicators
 from modules.score_utils import apply_score_model
 
 def get_krx_list():
-    return pd.read_csv("initial_krx_list.csv", dtype=str)[["종목코드", "종목명", "시장구분"]]
+    return pd.read_csv("initial_krx_list_test.csv", dtype=str)[["종목코드", "종목명", "시장구분"]]
 
 def main():
     krx = get_krx_list()
