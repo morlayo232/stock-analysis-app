@@ -1,3 +1,4 @@
+# update_stock_database.py
 import yfinance as yf
 import pandas as pd
 import requests
@@ -6,9 +7,11 @@ import time
 from modules import calculate_indicators
 from scipy.stats import zscore
 
+# --- KRX 리스트 불러오기 ---
 def get_krx_list():
     return pd.read_csv('initial_krx_list_test.csv', dtype=str)[['종목코드', '종목명', '시장구분']]
 
+# --- Naver 주가 크롤링 fallback ---
 def fetch_naver_stock_data(ticker):
     url = f"https://finance.naver.com/item/sise_day.nhn?code={ticker}"
     headers = {'User-Agent': 'Mozilla/5.0'}
@@ -29,20 +32,28 @@ def fetch_naver_stock_data(ticker):
         df_all.columns = ['날짜', '종가', '전일비', '시가', '고가', '저가', '거래량']
         df_all['날짜'] = pd.to_datetime(df_all['날짜'])
         df_all = df_all.sort_values('날짜').reset_index(drop=True)
-        df_all.rename(columns={'종가': 'Close', '거래량': 'Volume'}, inplace=True)
         return df_all
     except Exception as e:
         print(f"네이버 주가 데이터 처리 실패: {e}")
         return pd.DataFrame()
 
+# --- z-score 및 score 계산 함수 ---
 def calc_score(fin_df):
-    fin_df[['PER', 'PBR', 'ROE']] = fin_df[['PER', 'PBR', 'ROE']].astype(float)
+    fin_df['PER'] = pd.to_numeric(fin_df['PER'], errors='coerce')
+    fin_df['PBR'] = pd.to_numeric(fin_df['PBR'], errors='coerce')
+    fin_df['ROE'] = pd.to_numeric(fin_df['ROE'], errors='coerce')
+    fin_df = fin_df.dropna(subset=['PER', 'PBR', 'ROE'])
+
+    if len(fin_df) == 0:
+        return fin_df
+
     fin_df['PER_z'] = zscore(fin_df['PER'])
     fin_df['PBR_z'] = zscore(fin_df['PBR'])
     fin_df['ROE_z'] = zscore(fin_df['ROE'])
     fin_df['score'] = -fin_df['PER_z'] - fin_df['PBR_z'] + fin_df['ROE_z']
     return fin_df
 
+# --- 메인 함수 ---
 def main():
     krx_list = get_krx_list()
     records = []
@@ -59,6 +70,7 @@ def main():
                 if hist.empty:
                     print(f"⚠️ 데이터 부족: {code} {name}")
                     continue
+                hist.rename(columns={'종가': 'Close', '거래량': 'Volume'}, inplace=True)
 
             hist = hist.reset_index()
             hist = calculate_indicators(hist)
