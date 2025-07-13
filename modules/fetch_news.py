@@ -23,4 +23,8 @@ def fetch_news_headlines(query, max_count=5):
             link = title_tag["href"]
             headlines.append((title, link))
 
+<<<<<<< HEAD
     return headlines
+=======
+    return headlines
+>>>>>>> 4a27f38146733656025b2d13e5b4cc219821c6cb

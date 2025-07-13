@@ -130,4 +130,8 @@ try:
     t = os.path.getmtime("filtered_stocks.csv")
     st.sidebar.caption(f"📅 마지막 갱신: {datetime.fromtimestamp(t).strftime('%Y-%m-%d %H:%M:%S')}")
 except:
+<<<<<<< HEAD
     st.sidebar.warning("CSV 없음")
+=======
+    st.sidebar.warning("CSV 없음")
+>>>>>>> 4a27f38146733656025b2d13e5b4cc219821c6cb

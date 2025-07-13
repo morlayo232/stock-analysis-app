@@ -2,15 +2,28 @@ import pandas as pd
 import time
 from modules.fetch_price import fetch_stock_price
 from modules.calculate_indicators import calculate_indicators
+<<<<<<< HEAD
 from modules.score_utils import apply_score_model, DEFAULT_FIN
 from modules.fetch_naver import get_naver_financials
 
 def get_krx_list():
     return pd.read_csv("initial_krx_list.csv", dtype=str)[["종목코드", "종목명", "시장구분"]]
+=======
+from modules.score_utils import apply_score_model
+
+def get_krx_list():
+    return pd.read_csv("initial_krx_list_test.csv", dtype=str)[["종목코드", "종목명", "시장구분"]]
+>>>>>>> 4a27f38146733656025b2d13e5b4cc219821c6cb
 
 def main():
     krx = get_krx_list()
     results = []
+<<<<<<< HEAD
+=======
+
+    for _, row in krx.iterrows():
+        code, name, market = row["종목코드"], row["종목명"], row["시장구분"]
+>>>>>>> 4a27f38146733656025b2d13e5b4cc219821c6cb
 
     for _, row in krx.iterrows():
         code, name, market = row["종목코드"], row["종목명"], row["시장구분"]
@@ -19,6 +32,7 @@ def main():
             if df.empty or len(df) < 20:
                 print(f"⚠️ 주가 데이터 부족: {code} {name}")
                 continue
+<<<<<<< HEAD
             df = calculate_indicators(df)
             latest = df.iloc[-1]
             result = {
@@ -46,6 +60,28 @@ def main():
             print(f"✅ {code} {name} 처리 완료 / 점수 {result['score']}")
 
             time.sleep(0.3)
+=======
+
+            df = calculate_indicators(df)
+            latest = df.iloc[-1]
+            result = {
+                "종목코드": code,
+                "종목명": name,
+                "시장구분": market,
+                "현재가": latest["Close"],
+                "거래량": latest["Volume"],
+                "RSI": round(latest["RSI"], 2),
+                "MACD": round(latest["MACD"], 2),
+                "Signal": round(latest["Signal"], 2),
+                "수익률(3M)": round((df["Close"].iloc[-1] / df["Close"].iloc[0] - 1) * 100, 2)
+            }
+
+            result.update(apply_score_model(result))  # PER, PBR, ROE, 배당률, 점수 포함
+            results.append(result)
+            print(f"✅ {code} {name} 처리 완료")
+
+            time.sleep(0.2)
+>>>>>>> 4a27f38146733656025b2d13e5b4cc219821c6cb
 
         except Exception as e:
             print(f"❌ {code} {name} 오류: {e}")

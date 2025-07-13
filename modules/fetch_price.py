@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 import yfinance as yf
 import pandas as pd
 import requests
@@ -8,10 +9,22 @@ def fetch_stock_price(code):
     # 1. 야후 파이낸스
     market_code = ".KS" if code.startswith("0") or code.startswith("1") else ".KQ"
     ticker = f"{code}{market_code}"
+=======
+import pandas as pd
+from modules.fetch_naver import fetch_from_naver
+from modules.fetch_daum import fetch_from_daum
+import yfinance as yf
+
+def fetch_stock_price(code):
+    market_code = ".KS" if code.startswith("0") or code.startswith("1") else ".KQ"
+    ticker = f"{code}{market_code}"
+
+>>>>>>> 4a27f38146733656025b2d13e5b4cc219821c6cb
     try:
         df = yf.Ticker(ticker).history(period="6mo")
         if not df.empty:
             df = df.reset_index()
+<<<<<<< HEAD
             if 'Date' not in df.columns: df.rename(columns={'index':'Date'}, inplace=True)
             print(f"[YF 성공] {ticker} 데이터 {len(df)}건")
             return df[['Date','Close','Open','High','Low','Volume']]
@@ -67,3 +80,15 @@ def fetch_stock_price(code):
 
     print(f"[ALL FAIL] {code} 모든 주가 소스 실패")
     return pd.DataFrame()
+=======
+            return df
+    except:
+        pass
+
+    df = fetch_from_naver(code)
+    if not df.empty:
+        return df
+
+    df = fetch_from_daum(code)
+    return df
+>>>>>>> 4a27f38146733656025b2d13e5b4cc219821c6cb

@@ -58,4 +58,8 @@ def load_price(ticker, market):
         df = loader(ticker if loader == fetch_from_naver else full_ticker)
         if not df.empty:
             return df
+<<<<<<< HEAD
     return pd.DataFrame()
+=======
+    return pd.DataFrame()
+>>>>>>> 4a27f38146733656025b2d13e5b4cc219821c6cb
