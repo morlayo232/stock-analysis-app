@@ -25,15 +25,16 @@ jobs:
     - name: Run update script
       run: |
         python update_stock_database.py
-- name: Check authenticated user
-  env:
-    GH_TOKEN: ${{ secrets.GH_PAT }}
-  run: |
-    git config --global user.name "github-actions"
-    git config --global user.email "github-actions@github.com"
-    git remote set-url origin https://x-access-token:${GH_TOKEN}@github.com/${{ github.repository }}.git
-    git remote -v
-    git ls-remote origin
+
+    - name: Check authenticated user
+      env:
+        GH_TOKEN: ${{ secrets.GH_PAT }}
+      run: |
+        git config --global user.name "github-actions"
+        git config --global user.email "github-actions@github.com"
+        git remote set-url origin https://x-access-token:${GH_TOKEN}@github.com/${{ github.repository }}.git
+        git remote -v
+        git ls-remote origin
 
     - name: Commit and push changes
       env:
