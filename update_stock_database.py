@@ -105,3 +105,6 @@ def main():
 
 if __name__ == "__main__":
     main()
+# 강제로 git이 파일 변경으로 인식하도록 빈 줄 추가
+with open("filtered_stocks.csv", "a", encoding="utf-8") as f:
+    f.write("\n")
