@@ -23,8 +23,7 @@ def fetch_naver_stock_data(ticker):
             df = pd.read_html(str(table))[0]
             dfs.append(df)
             time.sleep(0.5)
-        except Exception as e:
-            print(f"네이버 주가 크롤링 오류 (p{page}): {e}")
+        except:
             continue
     try:
         df_all = pd.concat(dfs).dropna()
@@ -32,40 +31,45 @@ def fetch_naver_stock_data(ticker):
         df_all['날짜'] = pd.to_datetime(df_all['날짜'])
         df_all = df_all.sort_values('날짜').reset_index(drop=True)
         return df_all
-    except Exception as e:
-        print(f"네이버 주가 데이터 처리 실패: {e}")
+    except:
         return pd.DataFrame()
 
-# --- 메인 ---
+# --- score 계산 함수 ---
+def calc_score(df):
+    df[['PER', 'PBR', 'ROE']] = df[['PER', 'PBR', 'ROE']].astype(float)
+    df['PER_z'] = zscore(df['PER'])
+    df['PBR_z'] = zscore(df['PBR'])
+    df['ROE_z'] = zscore(df['ROE'])
+    df['score'] = -df['PER_z'] - df['PBR_z'] + df['ROE_z']
+    return df
+
+# --- 메인 함수 ---
 def main():
     krx_list = get_krx_list()
     records = []
 
-    for idx, row in krx_list.iterrows():
+    for _, row in krx_list.iterrows():
         code, name, market = row['종목코드'], row['종목명'], row['시장구분']
-        ticker = f"{code}.KS" if market == 'KOSPI' else f"{code}.KQ"
-
+        ticker = f"{code}.KS" if market == '코스피' else f"{code}.KQ"
         try:
             stock = yf.Ticker(ticker)
             hist = stock.history(period="6mo")
             if hist.empty or len(hist) < 10:
                 hist = fetch_naver_stock_data(code)
                 if hist.empty:
-                    print(f"⚠️ 데이터 부족: {code} {name}")
                     continue
                 hist.rename(columns={'종가': 'Close', '거래량': 'Volume'}, inplace=True)
-
             hist = hist.reset_index()
             hist = calculate_indicators(hist)
 
-            per, pbr, roe, dividend = 10.0, 1.2, 8.0, 2.5
-            current_price = hist['Close'].iloc[-1]
-            volume = hist['Volume'].iloc[-1]
             rsi = hist['RSI'].iloc[-1]
             macd = hist['MACD'].iloc[-1]
             signal = hist['Signal'].iloc[-1]
+            current_price = hist['Close'].iloc[-1]
+            volume = hist['Volume'].iloc[-1]
             ret_3m = (hist['Close'].iloc[-1] / hist['Close'].iloc[0] - 1) * 100
 
+            per, pbr, roe, dividend = 10.0, 1.2, 8.0, 2.5
             tech_score = 10 if rsi < 30 else 0
             if macd > signal:
                 tech_score += 10
@@ -88,39 +92,16 @@ def main():
                 'MACD': round(macd, 2),
                 'Signal': round(signal, 2),
             })
-
-            print(f"✓ 수집 완료: {code} {name}")
             time.sleep(0.3)
-
-        except Exception as e:
-            print(f"❌ 오류: {code} {name} - {e}")
+        except:
             continue
 
     df = pd.DataFrame(records)
-
-    # --- 스코어 계산 ---
-    try:
-        df[['PER', 'PBR', 'ROE']] = df[['PER', 'PBR', 'ROE']].astype(float)
-        if len(df) >= 3:
-            df['PER_z'] = zscore(df['PER'])
-            df['PBR_z'] = zscore(df['PBR'])
-            df['ROE_z'] = zscore(df['ROE'])
-            df['score'] = -df['PER_z'] - df['PBR_z'] + df['ROE_z']
-        else:
-            df['PER_z'] = df['PBR_z'] = df['ROE_z'] = df['score'] = None
-    except Exception as e:
-        print(f"⚠️ 스코어 계산 실패: {e}")
-        df['PER_z'] = df['PBR_z'] = df['ROE_z'] = df['score'] = None
-
     if df.empty:
-        print("❗ 데이터프레임이 비어있습니다. 저장 중단")
         return
 
-    try:
-        df.to_csv('filtered_stocks.csv', index=False, encoding='utf-8-sig')
-        print("✅ filtered_stocks.csv 저장 완료")
-    except Exception as e:
-        print(f"❌ CSV 저장 실패: {e}")
+    df = calc_score(df)
+    df.to_csv("filtered_stocks.csv", index=False, encoding="utf-8-sig")
 
 if __name__ == "__main__":
     main()
