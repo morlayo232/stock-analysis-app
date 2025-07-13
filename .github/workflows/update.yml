@@ -2,7 +2,7 @@ name: Daily Update
 
 on:
   schedule:
-    - cron: '0 23 * * *'  # 매일 오전 08시 (KST) 실행 (UTC 기준)
+    - cron: '0 23 * * *'  # 매일 오전 8시 (KST 기준)
   workflow_dispatch:
 
 jobs:
@@ -26,11 +26,14 @@ jobs:
       run: |
         python update_stock_database.py
 
-    - name: Commit updated CSV
+    - name: Commit and push changes
+      env:
+        GH_TOKEN: ${{ secrets.GH_PAT }}
       run: |
-        git config user.name "github-actions"
-        git config user.email "github-actions@github.com"
+        git config --global user.name "github-actions"
+        git config --global user.email "github-actions@github.com"
+        git remote set-url origin https://x-access-token:${GH_TOKEN}@github.com/${{ github.repository }}.git
+        git pull origin main --rebase || true
         git add filtered_stocks.csv
-        git commit -m "Update filtered_stocks.csv"
-        git push
-      continue-on-error: true
+        git commit -m "🔄 Auto-update filtered_stocks.csv ($(date +'%Y-%m-%d'))" || echo "Nothing to commit"
+        git push origin HEAD:main || echo "Nothing to push"

@@ -7,12 +7,20 @@ def plot_stock_chart(df):
     fig.add_trace(go.Scatter(x=df['Date'], y=df['EMA20'], name='EMA 20일', line=dict(color='green')))
 
     for i in range(1, len(df)):
-        if df['EMA5'].iloc[i-1] < df['EMA20'].iloc[i-1] and df['EMA5'].iloc[i] > df['EMA20'].iloc[i]:
-            fig.add_trace(go.Scatter(x=[df['Date'].iloc[i]], y=[df['Close'].iloc[i]], mode='markers',
-                                     marker_symbol='triangle-up', marker_color='green', marker_size=10, name='골든크로스 매수'))
-        elif df['EMA5'].iloc[i-1] > df['EMA20'].iloc[i-1] and df['EMA5'].iloc[i] < df['EMA20'].iloc[i]:
-            fig.add_trace(go.Scatter(x=[df['Date'].iloc[i]], y=[df['Close'].iloc[i]], mode='markers',
-                                     marker_symbol='triangle-down', marker_color='red', marker_size=10, name='데드크로스 매도'))
+        is_gc = df['EMA5'].iloc[i-1] < df['EMA20'].iloc[i-1] and df['EMA5'].iloc[i] > df['EMA20'].iloc[i]
+        is_dc = df['EMA5'].iloc[i-1] > df['EMA20'].iloc[i-1] and df['EMA5'].iloc[i] < df['EMA20'].iloc[i]
+        if is_gc:
+            fig.add_trace(go.Scatter(
+                x=[df['Date'].iloc[i]], y=[df['Close'].iloc[i]], mode='markers',
+                marker_symbol='triangle-up', marker_color='green', marker_size=10,
+                name='골든크로스 매수' if i == 1 else '', showlegend=(i == 1)
+            ))
+        elif is_dc:
+            fig.add_trace(go.Scatter(
+                x=[df['Date'].iloc[i]], y=[df['Close'].iloc[i]], mode='markers',
+                marker_symbol='triangle-down', marker_color='red', marker_size=10,
+                name='데드크로스 매도' if i == 1 else '', showlegend=(i == 1)
+            ))
 
     fig.update_layout(title='📈 주가 + 이동평균선 + 매수/매도 신호',
                       xaxis_title='날짜',

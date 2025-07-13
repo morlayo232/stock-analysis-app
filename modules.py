@@ -43,11 +43,11 @@ def calc_investment_score(df, style):
         if df['EMA5'].iloc[-1] > df['EMA20'].iloc[-1]:
             score += 10
     elif style == '배당형':
-        score += 5  # 실제 배당률 반영은 추후
+        score += 5
 
-    if 'score' in df.columns:
+    if 'score' in df.columns and not df['score'].isnull().all():
         try:
-            score += float(df['score'].iloc[-1])  # 정량 투자 점수 반영
+            score += float(df['score'].iloc[-1])
         except:
             pass
     return float(score)
