@@ -3,7 +3,7 @@ name: Daily Update
 on:
   schedule:
     - cron: '0 23 * * *'  # 매일 오전 08시 (KST)
-  workflow_dispatch:  # 수동 실행도 허용
+  workflow_dispatch:
 
 jobs:
   update:
@@ -28,15 +28,12 @@ jobs:
 
     - name: Commit and push changes
       env:
-        GH_TOKEN: ${{ secrets.GH_PAT }}  # GitHub PAT (repo 권한 필수)
+        GH_TOKEN: ${{ secrets.GH_PAT }}
       run: |
         git config --global user.name "github-actions"
         git config --global user.email "github-actions@github.com"
+        git remote set-url origin https://x-access-token:${GH_TOKEN}@github.com/${{ github.repository }}.git
+        git pull origin main --rebase
         git add filtered_stocks.csv
         git commit -m "🔄 Auto-update filtered_stocks.csv ($(date +'%Y-%m-%d'))" || echo "Nothing to commit"
-
-        # ✅ 기존 origin 제거 후 PAT 기반 origin 등록
-        git remote remove origin
-        git remote add origin https://x-access-token:${GH_TOKEN}@github.com/${{ github.repository }}.git
-
         git push origin HEAD:main
