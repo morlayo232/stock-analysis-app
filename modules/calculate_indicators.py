@@ -7,8 +7,4 @@ def calculate_indicators(df):
     macd = ta.trend.MACD(df["Close"])
     df["MACD"] = macd.macd()
     df["Signal"] = macd.macd_signal()
-<<<<<<< HEAD
     return df
-=======
-    return df
->>>>>>> 4a27f38146733656025b2d13e5b4cc219821c6cb
