@@ -4,7 +4,6 @@ import requests
 from bs4 import BeautifulSoup
 import time
 from modules import calculate_indicators
-from scipy.stats import zscore
 
 # --- KRX 리스트 불러오기 ---
 def get_krx_list():
@@ -23,7 +22,8 @@ def fetch_naver_stock_data(ticker):
             df = pd.read_html(str(table))[0]
             dfs.append(df)
             time.sleep(0.5)
-        except:
+        except Exception as e:
+            print(f"네이버 주가 크롤링 오류 (p{page}): {e}")
             continue
     try:
         df_all = pd.concat(dfs).dropna()
@@ -31,48 +31,100 @@ def fetch_naver_stock_data(ticker):
         df_all['날짜'] = pd.to_datetime(df_all['날짜'])
         df_all = df_all.sort_values('날짜').reset_index(drop=True)
         return df_all
-    except:
+    except Exception as e:
+        print(f"네이버 주가 데이터 처리 실패: {e}")
         return pd.DataFrame()
 
-# --- score 계산 함수 ---
-def calc_score(df):
-    df[['PER', 'PBR', 'ROE']] = df[['PER', 'PBR', 'ROE']].astype(float)
-    df['PER_z'] = zscore(df['PER'])
-    df['PBR_z'] = zscore(df['PBR'])
-    df['ROE_z'] = zscore(df['ROE'])
-    df['score'] = -df['PER_z'] - df['PBR_z'] + df['ROE_z']
-    return df
+# --- 절대 기반 스코어 계산 함수 ---
+def calc_score(fin_df):
+    scores = []
 
-# --- 메인 함수 ---
+    for _, row in fin_df.iterrows():
+        try:
+            score = 0
+            per, pbr, roe, dividend = float(row['PER']), float(row['PBR']), float(row['ROE']), float(row['배당률'])
+
+            # PER: 낮을수록 우수
+            if per < 5:
+                score += 20
+            elif per < 10:
+                score += 15
+            elif per < 20:
+                score += 10
+            elif per < 40:
+                score += 5
+
+            # PBR: 1 이하 우수
+            if pbr < 0.5:
+                score += 20
+            elif pbr < 1:
+                score += 15
+            elif pbr < 2:
+                score += 10
+            else:
+                score += 5
+
+            # ROE: 높을수록 우수
+            if roe > 20:
+                score += 20
+            elif roe > 10:
+                score += 15
+            elif roe > 5:
+                score += 10
+            else:
+                score += 5
+
+            # 배당률: 2% 이상 우수
+            if dividend > 5:
+                score += 10
+            elif dividend > 2:
+                score += 7
+            elif dividend > 1:
+                score += 5
+            else:
+                score += 0
+
+            scores.append(score)
+        except:
+            scores.append(0)
+
+    fin_df['score'] = scores
+    return fin_df
+
+# --- 메인 ---
 def main():
     krx_list = get_krx_list()
     records = []
 
-    for _, row in krx_list.iterrows():
+    for idx, row in krx_list.iterrows():
         code, name, market = row['종목코드'], row['종목명'], row['시장구분']
-        ticker = f"{code}.KS" if market == '코스피' else f"{code}.KQ"
+        ticker = f"{code}.KS" if market == 'KOSPI' else f"{code}.KQ"
+
         try:
             stock = yf.Ticker(ticker)
             hist = stock.history(period="6mo")
             if hist.empty or len(hist) < 10:
                 hist = fetch_naver_stock_data(code)
                 if hist.empty:
+                    print(f"⚠️ 데이터 부족: {code} {name}")
                     continue
                 hist.rename(columns={'종가': 'Close', '거래량': 'Volume'}, inplace=True)
+
             hist = hist.reset_index()
             hist = calculate_indicators(hist)
 
+            # 임시 재무 수치 (향후 재무제표 크롤링 필요)
+            per, pbr, roe, dividend = 10.0, 1.2, 8.0, 2.5
+            current_price = hist['Close'].iloc[-1]
+            volume = hist['Volume'].iloc[-1]
             rsi = hist['RSI'].iloc[-1]
             macd = hist['MACD'].iloc[-1]
             signal = hist['Signal'].iloc[-1]
-            current_price = hist['Close'].iloc[-1]
-            volume = hist['Volume'].iloc[-1]
             ret_3m = (hist['Close'].iloc[-1] / hist['Close'].iloc[0] - 1) * 100
 
-            per, pbr, roe, dividend = 10.0, 1.2, 8.0, 2.5
-            tech_score = 10 if rsi < 30 else 0
-            if macd > signal:
-                tech_score += 10
+            tech_score = 0
+            if rsi < 30: tech_score += 10
+            if macd > signal: tech_score += 10
             force_score = 10 if volume > hist['Volume'].mean() else 0
 
             records.append({
@@ -92,19 +144,27 @@ def main():
                 'MACD': round(macd, 2),
                 'Signal': round(signal, 2),
             })
+
+            print(f"✓ 수집 완료: {code} {name}")
             time.sleep(0.3)
-        except:
+
+        except Exception as e:
+            print(f"❌ 오류: {code} {name} - {e}")
             continue
 
     df = pd.DataFrame(records)
+
     if df.empty:
+        print("❗ 데이터프레임이 비어있습니다. 저장 중단")
         return
 
     df = calc_score(df)
-    df.to_csv("filtered_stocks.csv", index=False, encoding="utf-8-sig")
+
+    try:
+        df.to_csv('filtered_stocks.csv', index=False, encoding='utf-8-sig')
+        print("✅ filtered_stocks.csv 저장 완료")
+    except Exception as e:
+        print(f"❌ CSV 저장 실패: {e}")
 
 if __name__ == "__main__":
     main()
-# 강제로 git이 파일 변경으로 인식하도록 빈 줄 추가
-with open("filtered_stocks.csv", "a", encoding="utf-8") as f:
-    f.write("\n")
