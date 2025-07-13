@@ -1,8 +1,9 @@
 streamlit
-pandas
-numpy
-requests
-beautifulsoup4
-scipy
-plotly
 yfinance
+pandas
+plotly
+ta
+beautifulsoup4
+requests
+scipy
+lxml
