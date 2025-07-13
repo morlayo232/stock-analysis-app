@@ -33,7 +33,9 @@ jobs:
         git config --global user.name "github-actions"
         git config --global user.email "github-actions@github.com"
         git remote set-url origin https://x-access-token:${GH_TOKEN}@github.com/${{ github.repository }}.git
+        git stash
         git pull origin main --rebase
+        git stash pop || true
         git add filtered_stocks.csv
         git commit -m "🔄 Auto-update filtered_stocks.csv ($(date +'%Y-%m-%d'))" || echo "Nothing to commit"
         git push origin HEAD:main
