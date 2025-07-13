@@ -16,20 +16,25 @@ def fetch_naver_stock_data(ticker):
     headers = {'User-Agent': 'Mozilla/5.0'}
     dfs = []
     for page in range(1, 6):
-        res = requests.get(url + f"&page={page}", headers=headers)
-        soup = BeautifulSoup(res.text, 'html.parser')
-        table = soup.find('table', class_='type2')
         try:
+            res = requests.get(url + f"&page={page}", headers=headers)
+            soup = BeautifulSoup(res.text, 'html.parser')
+            table = soup.find('table', class_='type2')
             df = pd.read_html(str(table))[0]
             dfs.append(df)
-        except:
+            time.sleep(0.5)
+        except Exception as e:
+            print(f"네이버 주가 크롤링 오류 (p{page}): {e}")
             continue
-        time.sleep(0.5)
-    df_all = pd.concat(dfs).dropna()
-    df_all.columns = ['날짜', '종가', '전일비', '시가', '고가', '저가', '거래량']
-    df_all['날짜'] = pd.to_datetime(df_all['날짜'])
-    df_all = df_all.sort_values('날짜').reset_index(drop=True)
-    return df_all
+    try:
+        df_all = pd.concat(dfs).dropna()
+        df_all.columns = ['날짜', '종가', '전일비', '시가', '고가', '저가', '거래량']
+        df_all['날짜'] = pd.to_datetime(df_all['날짜'])
+        df_all = df_all.sort_values('날짜').reset_index(drop=True)
+        return df_all
+    except Exception as e:
+        print(f"네이버 주가 데이터 처리 실패: {e}")
+        return pd.DataFrame()
 
 # --- score 계산 함수 ---
 def calc_score(fin_df):
@@ -59,11 +64,9 @@ def main():
                     continue
                 hist.rename(columns={'종가': 'Close', '거래량': 'Volume'}, inplace=True)
 
-            # 기술 지표 계산
             hist = hist.reset_index()
             hist = calculate_indicators(hist)
 
-            # 예시 수치 (실제 API 연동 필요)
             per, pbr, roe, dividend = 10.0, 1.2, 8.0, 2.5
             current_price = hist['Close'].iloc[-1]
             volume = hist['Volume'].iloc[-1]
@@ -72,7 +75,6 @@ def main():
             signal = hist['Signal'].iloc[-1]
             ret_3m = (hist['Close'].iloc[-1] / hist['Close'].iloc[0] - 1) * 100
 
-            # 기술/세력 점수 계산
             tech_score = 0
             if rsi < 30: tech_score += 10
             if macd > signal: tech_score += 10
@@ -90,7 +92,7 @@ def main():
                 '거래량': volume,
                 '3개월수익률': round(ret_3m, 2),
                 '기술점수': tech_score,
-                '세력점수': force_score,
+                '세려점수': force_score,
                 'RSI': round(rsi, 2),
                 'MACD': round(macd, 2),
                 'Signal': round(signal, 2),
@@ -104,9 +106,17 @@ def main():
             continue
 
     df = pd.DataFrame(records)
+
+    if df.empty:
+        print("❗ 데이터프레임이 비어있습니다. 저장 중단")
+        return
+
     df = calc_score(df)
-    df.to_csv('filtered_stocks.csv', index=False, encoding='utf-8-sig')
-    print("✅ filtered_stocks.csv 저장 완료")
+    try:
+        df.to_csv('filtered_stocks.csv', index=False, encoding='utf-8-sig')
+        print("✅ filtered_stocks.csv 저장 완료")
+    except Exception as e:
+        print(f"❌ CSV 저장 실패: {e}")
 
 if __name__ == "__main__":
     main()
