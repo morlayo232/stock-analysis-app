@@ -1,6 +1,5 @@
 import plotly.graph_objects as go
 
-
 def plot_stock_chart(df):
     fig = go.Figure()
     fig.add_trace(go.Scatter(x=df['Date'], y=df['Close'], name='종가', line=dict(color='blue')))
@@ -28,7 +27,6 @@ def plot_stock_chart(df):
                       yaxis_title='가격',
                       hovermode='x unified')
     return fig
-
 
 def plot_rsi_macd(df):
     fig = go.Figure()
