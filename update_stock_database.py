@@ -8,7 +8,7 @@ from scipy.stats import zscore
 
 # --- KRX 리스트 불러오기 ---
 def get_krx_list():
-    return pd.read_csv('initial_krx_list.csv', dtype=str)[['종목코드', '종목명', '시장구분']]
+    return pd.read_csv('initial_krx_list_test.csv', dtype=str)[['종목코드', '종목명', '시장구분']]
 
 # --- Naver 주가 크롤링 fallback ---
 def fetch_naver_stock_data(ticker):
