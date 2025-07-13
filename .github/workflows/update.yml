@@ -25,6 +25,15 @@ jobs:
     - name: Run update script
       run: |
         python update_stock_database.py
+- name: Check authenticated user
+  env:
+    GH_TOKEN: ${{ secrets.GH_PAT }}
+  run: |
+    git config --global user.name "github-actions"
+    git config --global user.email "github-actions@github.com"
+    git remote set-url origin https://x-access-token:${GH_TOKEN}@github.com/${{ github.repository }}.git
+    git remote -v
+    git ls-remote origin
 
     - name: Commit and push changes
       env:
@@ -35,12 +44,3 @@ jobs:
         git add filtered_stocks.csv
         git commit -m "🔄 Auto-update filtered_stocks.csv ($(date +'%Y-%m-%d'))" || echo "Nothing to commit"
         git push https://x-access-token:${GH_TOKEN}@github.com/${{ github.repository }}.git HEAD:main
-- name: Check authenticated user
-  env:
-    GH_TOKEN: ${{ secrets.GH_PAT }}
-  run: |
-    git config --global user.name "github-actions"
-    git config --global user.email "github-actions@github.com"
-    git remote set-url origin https://x-access-token:${GH_TOKEN}@github.com/${{ github.repository }}.git
-    git remote -v
-    git ls-remote origin
