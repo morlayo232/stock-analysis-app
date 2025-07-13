@@ -2,8 +2,9 @@ import pandas as pd
 import time
 from modules.fetch_price import fetch_stock_price
 from modules.calculate_indicators import calculate_indicators
-from modules.score_utils import apply_score_model, DEFAULT_FIN
+from modules.score_utils import apply_score_model, DEFAULT_FIN, safe_float
 from modules.fetch_naver import get_naver_financials
+from modules.fetch_daum import get_daum_financials
 
 def get_krx_list():
     return pd.read_csv("initial_krx_list.csv", dtype=str)[["종목코드", "종목명", "시장구분"]]
@@ -33,12 +34,30 @@ def main():
                 "수익률(3M)": round((df["Close"].iloc[-1] / df["Close"].iloc[0] - 1) * 100, 2)
             }
 
-            # --- 재무 크롤링(네이버 우선, 실패시 기본값) ---
+            # --- 재무 크롤링(네이버 우선, 실패시 다음/기본값) ---
             per, pbr, roe, dividend = get_naver_financials(code)
-            result["PER"] = float(per) if per not in [None, '', '-'] else DEFAULT_FIN["PER"]
-            result["PBR"] = float(pbr) if pbr not in [None, '', '-'] else DEFAULT_FIN["PBR"]
-            result["ROE"] = float(roe) if roe not in [None, '', '-'] else DEFAULT_FIN["ROE"]
-            result["배당률"] = float(dividend) if dividend not in [None, '', '-'] else DEFAULT_FIN["배당률"]
+            per = safe_float(per, DEFAULT_FIN["PER"])
+            pbr = safe_float(pbr, DEFAULT_FIN["PBR"])
+            roe = safe_float(roe, DEFAULT_FIN["ROE"])
+            dividend = safe_float(dividend, DEFAULT_FIN["배당률"])
+
+            # 네이버 값이 기본값과 동일하면 다음 금융에서 재시도
+            if any([
+                per == DEFAULT_FIN["PER"],
+                pbr == DEFAULT_FIN["PBR"],
+                roe == DEFAULT_FIN["ROE"],
+                dividend == DEFAULT_FIN["배당률"]
+            ]):
+                per2, pbr2, roe2, dividend2 = get_daum_financials(code)
+                per = per if per != DEFAULT_FIN["PER"] else safe_float(per2, DEFAULT_FIN["PER"])
+                pbr = pbr if pbr != DEFAULT_FIN["PBR"] else safe_float(pbr2, DEFAULT_FIN["PBR"])
+                roe = roe if roe != DEFAULT_FIN["ROE"] else safe_float(roe2, DEFAULT_FIN["ROE"])
+                dividend = dividend if dividend != DEFAULT_FIN["배당률"] else safe_float(dividend2, DEFAULT_FIN["배당률"])
+
+            result["PER"] = per
+            result["PBR"] = pbr
+            result["ROE"] = roe
+            result["배당률"] = dividend
 
             result = apply_score_model(result)  # 점수 계산
 
