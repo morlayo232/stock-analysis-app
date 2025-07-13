@@ -1,11 +1,10 @@
-# modules/calculate_indicators.py
-import pandas as pd
 import ta
+import pandas as pd
 
 def calculate_indicators(df):
     df['EMA5'] = ta.trend.EMAIndicator(df['Close'], window=5).ema_indicator()
     df['EMA20'] = ta.trend.EMAIndicator(df['Close'], window=20).ema_indicator()
-    df['RSI'] = ta.momentum.RSIIndicator(df['Close'], window=14).rsi()
+    df['RSI'] = ta.momentum.RSIIndicator(df['Close']).rsi()
     macd = ta.trend.MACD(df['Close'])
     df['MACD'] = macd.macd()
     df['Signal'] = macd.macd_signal()
