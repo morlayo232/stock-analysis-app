@@ -1,16 +1,17 @@
+# update_stock_database.py
 import yfinance as yf
 import pandas as pd
 import requests
 from bs4 import BeautifulSoup
 import time
-from modules import calculate_indicators
-import numpy as np
+from modules.calculate_indicators import calculate_indicators
+from modules.score_utils import calculate_score
 
 # --- KRX 리스트 불러오기 ---
 def get_krx_list():
     return pd.read_csv('initial_krx_list.csv', dtype=str)[['종목코드', '종목명', '시장구분']]
 
-# --- Naver 주가 크롤링 fallback ---
+# --- 2차: Naver 주가 크롤링 fallback ---
 def fetch_naver_stock_data(ticker):
     url = f"https://finance.naver.com/item/sise_day.nhn?code={ticker}"
     headers = {'User-Agent': 'Mozilla/5.0'}
@@ -31,25 +32,13 @@ def fetch_naver_stock_data(ticker):
         df_all.columns = ['날짜', '종가', '전일비', '시가', '고가', '저가', '거래량']
         df_all['날짜'] = pd.to_datetime(df_all['날짜'])
         df_all = df_all.sort_values('날짜').reset_index(drop=True)
+        df_all.rename(columns={'종가': 'Close', '거래량': 'Volume'}, inplace=True)
         return df_all
     except Exception as e:
         print(f"네이버 주가 데이터 처리 실패: {e}")
         return pd.DataFrame()
 
-# --- 절대 기준 기반 score 계산 함수 ---
-def calc_score(fin_df):
-    fin_df[['PER', 'PBR', 'ROE']] = fin_df[['PER', 'PBR', 'ROE']].astype(float)
-
-    # 기본 점수 초기화
-    per_score = np.where(fin_df['PER'] < 10, 10, np.where(fin_df['PER'] < 15, 5, 0))
-    pbr_score = np.where(fin_df['PBR'] < 1, 10, np.where(fin_df['PBR'] < 2, 5, 0))
-    roe_score = np.where(fin_df['ROE'] > 10, 10, np.where(fin_df['ROE'] > 5, 5, 0))
-
-    fin_df['score'] = per_score + pbr_score + roe_score
-
-    return fin_df
-
-# --- 메인 실행 ---
+# --- 메인 ---
 def main():
     krx_list = get_krx_list()
     records = []
@@ -57,32 +46,28 @@ def main():
     for idx, row in krx_list.iterrows():
         code, name, market = row['종목코드'], row['종목명'], row['시장구분']
         ticker = f"{code}.KS" if market == 'KOSPI' else f"{code}.KQ"
+        df = pd.DataFrame()
 
         try:
             stock = yf.Ticker(ticker)
-            hist = stock.history(period="6mo")
-            if hist.empty or len(hist) < 10:
-                hist = fetch_naver_stock_data(code)
-                if hist.empty:
-                    print(f"⚠️ 데이터 부족: {code} {name}")
-                    continue
-                hist.rename(columns={'종가': 'Close', '거래량': 'Volume'}, inplace=True)
+            df = stock.history(period="6mo")
+            df.reset_index(inplace=True)
+            if df.empty or len(df) < 10:
+                df = fetch_naver_stock_data(code)
+            if df.empty or len(df) < 10:
+                print(f"⚠️ 데이터 부족: {code} {name}")
+                continue
 
-            hist = hist.reset_index()
-            hist = calculate_indicators(hist)
+            df = calculate_indicators(df)
+            current_price = df['Close'].iloc[-1]
+            volume = df['Volume'].iloc[-1]
+            rsi = df['RSI'].iloc[-1]
+            macd = df['MACD'].iloc[-1]
+            signal = df['Signal'].iloc[-1]
+            ret_3m = (df['Close'].iloc[-1] / df['Close'].iloc[0] - 1) * 100
 
-            per, pbr, roe, dividend = 10.0, 1.2, 8.0, 2.5  # 실제 데이터 크롤링 가능 시 교체
-            current_price = hist['Close'].iloc[-1]
-            volume = hist['Volume'].iloc[-1]
-            rsi = hist['RSI'].iloc[-1]
-            macd = hist['MACD'].iloc[-1]
-            signal = hist['Signal'].iloc[-1]
-            ret_3m = (hist['Close'].iloc[-1] / hist['Close'].iloc[0] - 1) * 100
-
-            tech_score = 0
-            if rsi < 30: tech_score += 10
-            if macd > signal: tech_score += 10
-            force_score = 10 if volume > hist['Volume'].mean() else 0
+            # 실제 재무 데이터가 없을 경우 기본값 대입
+            per, pbr, roe, dividend = 10.0, 1.2, 8.0, 2.5
 
             records.append({
                 '종목코드': code,
@@ -95,27 +80,25 @@ def main():
                 '현재가': current_price,
                 '거래량': volume,
                 '3개월수익률': round(ret_3m, 2),
-                '기술점수': tech_score,
-                '세력점수': force_score,
                 'RSI': round(rsi, 2),
                 'MACD': round(macd, 2),
                 'Signal': round(signal, 2)
             })
 
             print(f"✓ 수집 완료: {code} {name}")
-            time.sleep(0.3)
+            time.sleep(0.2)
 
         except Exception as e:
             print(f"❌ 오류: {code} {name} - {e}")
             continue
 
     df = pd.DataFrame(records)
-
     if df.empty:
-        print("❗ 데이터프레임이 비어있습니다. 저장 중단")
+        print("❗ 데이터프레임이 비어있습니다.")
         return
 
-    df = calc_score(df)
+    df = calculate_score(df)
+
     try:
         df.to_csv('filtered_stocks.csv', index=False, encoding='utf-8-sig')
         print("✅ filtered_stocks.csv 저장 완료")
