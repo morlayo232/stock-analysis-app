@@ -1,4 +1,3 @@
-# update_stock_database.py
 import yfinance as yf
 import pandas as pd
 import requests
@@ -37,23 +36,7 @@ def fetch_naver_stock_data(ticker):
         print(f"네이버 주가 데이터 처리 실패: {e}")
         return pd.DataFrame()
 
-# --- z-score 및 score 계산 함수 ---
-def calc_score(fin_df):
-    fin_df['PER'] = pd.to_numeric(fin_df['PER'], errors='coerce')
-    fin_df['PBR'] = pd.to_numeric(fin_df['PBR'], errors='coerce')
-    fin_df['ROE'] = pd.to_numeric(fin_df['ROE'], errors='coerce')
-    fin_df = fin_df.dropna(subset=['PER', 'PBR', 'ROE'])
-
-    if len(fin_df) == 0:
-        return fin_df
-
-    fin_df['PER_z'] = zscore(fin_df['PER'])
-    fin_df['PBR_z'] = zscore(fin_df['PBR'])
-    fin_df['ROE_z'] = zscore(fin_df['ROE'])
-    fin_df['score'] = -fin_df['PER_z'] - fin_df['PBR_z'] + fin_df['ROE_z']
-    return fin_df
-
-# --- 메인 함수 ---
+# --- 메인 ---
 def main():
     krx_list = get_krx_list()
     records = []
@@ -83,9 +66,9 @@ def main():
             signal = hist['Signal'].iloc[-1]
             ret_3m = (hist['Close'].iloc[-1] / hist['Close'].iloc[0] - 1) * 100
 
-            tech_score = 0
-            if rsi < 30: tech_score += 10
-            if macd > signal: tech_score += 10
+            tech_score = 10 if rsi < 30 else 0
+            if macd > signal:
+                tech_score += 10
             force_score = 10 if volume > hist['Volume'].mean() else 0
 
             records.append({
@@ -115,11 +98,24 @@ def main():
 
     df = pd.DataFrame(records)
 
+    # --- 스코어 계산 ---
+    try:
+        df[['PER', 'PBR', 'ROE']] = df[['PER', 'PBR', 'ROE']].astype(float)
+        if len(df) >= 3:
+            df['PER_z'] = zscore(df['PER'])
+            df['PBR_z'] = zscore(df['PBR'])
+            df['ROE_z'] = zscore(df['ROE'])
+            df['score'] = -df['PER_z'] - df['PBR_z'] + df['ROE_z']
+        else:
+            df['PER_z'] = df['PBR_z'] = df['ROE_z'] = df['score'] = None
+    except Exception as e:
+        print(f"⚠️ 스코어 계산 실패: {e}")
+        df['PER_z'] = df['PBR_z'] = df['ROE_z'] = df['score'] = None
+
     if df.empty:
         print("❗ 데이터프레임이 비어있습니다. 저장 중단")
         return
 
-    df = calc_score(df)
     try:
         df.to_csv('filtered_stocks.csv', index=False, encoding='utf-8-sig')
         print("✅ filtered_stocks.csv 저장 완료")
