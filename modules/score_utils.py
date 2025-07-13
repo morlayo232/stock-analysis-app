@@ -1,50 +1,32 @@
-# ✅ /modules/score_utils.py
-import numpy as np
+import pandas as pd
+from scipy.stats import zscore
 
-# 투자 점수 계산 함수
-# 스타일별 가중치를 다르게 적용하며, 스코어 누락 방지 및 안정성 보강
+# 절대 기준 기반 스코어 계산
+def calc_score(fin_df):
+    fin_df[['PER', 'PBR', 'ROE']] = fin_df[['PER', 'PBR', 'ROE']].astype(float)
 
-def calculate_final_score(row, style):
+    # z-score 계산
     try:
-        per = float(row['PER'])
-        pbr = float(row['PBR'])
-        roe = float(row['ROE'])
-        dividend = float(row['배당률'])
-        rsi = float(row['RSI'])
-        macd = float(row['MACD'])
-        signal = float(row['Signal'])
-        volume = float(row['거래량'])
-        price = float(row['현재가'])
-        return_3m = float(row['3개월수익률'])
+        fin_df['PER_z'] = zscore(fin_df['PER'])
+        fin_df['PBR_z'] = zscore(fin_df['PBR'])
+        fin_df['ROE_z'] = zscore(fin_df['ROE'])
     except:
-        return np.nan
+        fin_df['PER_z'] = 0
+        fin_df['PBR_z'] = 0
+        fin_df['ROE_z'] = 0
 
-    # 기본 정량 점수 (재무 지표 기반)
-    base_score = 0
-    if per > 0: base_score += max(0, 20 - per) * 0.5
-    if pbr > 0: base_score += max(0, 5 - pbr) * 1.0
-    base_score += roe * 0.8
-    base_score += dividend * 0.5
+    # 종합 투자 점수 계산 (z-score 기반)
+    fin_df['score_z'] = -fin_df['PER_z'] - fin_df['PBR_z'] + fin_df['ROE_z']
 
-    # 기술적 점수
-    tech_score = 0
-    if rsi < 30: tech_score += 10
-    if macd > signal: tech_score += 10
-    if volume > 0 and price > 0:  # 거래대금
-        trade_amount = volume * price
-        if trade_amount > 1e9: tech_score += 5
+    # 절대 기준 기반 정량 스코어 (가중치 조정 가능)
+    def compute_absolute_score(row):
+        per_score = 10 if row['PER'] < 10 else 5 if row['PER'] < 15 else 0
+        pbr_score = 10 if row['PBR'] < 1 else 5 if row['PBR'] < 1.5 else 0
+        roe_score = 10 if row['ROE'] > 10 else 5 if row['ROE'] > 5 else 0
+        return per_score + pbr_score + roe_score
 
-    # 수익률
-    momentum_score = return_3m * 0.3 if return_3m > 0 else 0
+    fin_df['score_abs'] = fin_df.apply(compute_absolute_score, axis=1)
 
-    # 스타일별 가중치
-    if style == '공격적':
-        total = base_score * 0.4 + tech_score * 0.4 + momentum_score * 0.2
-    elif style == '안정적':
-        total = base_score * 0.6 + tech_score * 0.2 + momentum_score * 0.2
-    elif style == '배당형':
-        total = base_score * 0.5 + dividend * 1.5 + tech_score * 0.2
-    else:
-        total = base_score + tech_score + momentum_score
-
-    return round(total, 2)
+    # 최종 score: 절대 점수와 z-score 기반 점수의 평균
+    fin_df['score'] = (fin_df['score_abs'] + fin_df['score_z']) / 2
+    return fin_df
