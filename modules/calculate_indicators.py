@@ -1,21 +1,30 @@
 import pandas as pd
 
-def calculate_indicators(df):
-    df = df.copy()
-    df["EMA5"] = df["Close"].ewm(span=5, adjust=False).mean()
-    df["EMA20"] = df["Close"].ewm(span=20, adjust=False).mean()
-    df["EMA_Cross"] = None
-    df.loc[(df["EMA5"] > df["EMA20"]) & (df["EMA5"].shift(1) <= df["EMA20"].shift(1)), "EMA_Cross"] = "golden"
-    df.loc[(df["EMA5"] < df["EMA20"]) & (df["EMA5"].shift(1) >= df["EMA20"].shift(1)), "EMA_Cross"] = "dead"
-    delta = df["Close"].diff()
+def calc_ema(df, window=20, col='종가'):
+    return df[col].ewm(span=window, adjust=False).mean()
+
+def calc_rsi(df, window=14, col='종가'):
+    delta = df[col].diff()
     up = delta.clip(lower=0)
     down = -delta.clip(upper=0)
-    avg_gain = up.rolling(window=14, min_periods=1).mean()
-    avg_loss = down.rolling(window=14, min_periods=1).mean()
-    rs = avg_gain / (avg_loss + 1e-9)
-    df["RSI"] = 100 - (100 / (1 + rs))
-    ema12 = df["Close"].ewm(span=12, adjust=False).mean()
-    ema26 = df["Close"].ewm(span=26, adjust=False).mean()
-    df["MACD"] = ema12 - ema26
-    df["Signal"] = df["MACD"].ewm(span=9, adjust=False).mean()
+    ma_up = up.rolling(window=window, min_periods=1).mean()
+    ma_down = down.rolling(window=window, min_periods=1).mean()
+    rs = ma_up / (ma_down + 1e-6)
+    return 100 - (100 / (1 + rs))
+
+def calc_macd(df, col='종가'):
+    ema12 = df[col].ewm(span=12, adjust=False).mean()
+    ema26 = df[col].ewm(span=26, adjust=False).mean()
+    macd = ema12 - ema26
+    signal = macd.ewm(span=9, adjust=False).mean()
+    hist = macd - signal
+    return macd, signal, hist
+
+def add_tech_indicators(df):
+    df['EMA_20'] = calc_ema(df, 20)
+    df['RSI_14'] = calc_rsi(df, 14)
+    macd, signal, hist = calc_macd(df)
+    df['MACD'] = macd
+    df['MACD_SIGNAL'] = signal
+    df['MACD_HIST'] = hist
     return df
