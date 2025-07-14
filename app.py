@@ -1,16 +1,14 @@
 import streamlit as st
 import pandas as pd
 import json
-import os
-from datetime import datetime
 from modules.calculate_indicators import calculate_indicators
-from modules.score_utils import apply_score_model
+from modules.score_utils import finalize_scores, safe_float, DEFAULT_FIN
 from modules.chart_utils import plot_stock_chart, plot_rsi_macd
 from modules.fetch_price import fetch_stock_price
 from modules.fetch_news import fetch_news_headlines
 from update_stock_database import main as update_main
 
-st.set_page_config(page_title="📈 한국 주식 분석", layout="wide")
+st.set_page_config(page_title="📊 한국 주식 분석", layout="wide")
 
 FAV_FILE = "favorites.json"
 
@@ -32,122 +30,135 @@ def save_favorites(favs):
 def search_stocks(keyword, df):
     return df[df["종목명"].str.contains(keyword, case=False)] if keyword else pd.DataFrame()
 
-filtered_stocks = load_filtered_stocks()
-favorites = load_favorites()
+def get_score_color(score):
+    try:
+        score = float(score)
+        if score >= 1.5:
+            return "green"
+        elif score >= 0.5:
+            return "blue"
+        elif score <= -1.5:
+            return "red"
+        else:
+            return "black"
+    except:
+        return "gray"
 
+# ---- UI 시작 ----
 st.title("📊 한국 주식 시장 투자 매력도 분석")
+st.info("주가 데이터를 불러올 수 없습니다.", icon="ℹ️")
 
-style = st.sidebar.radio("투자 성향", ["공격적", "안정적", "배당형"])
-keyword = st.sidebar.text_input("🔍 종목 검색")
-results = search_stocks(keyword, filtered_stocks)
+# ---- 투자 성향, 종목검색 등 각종 사이드바 ----
+st.sidebar.header("투자 성향 선택")
+style = st.sidebar.radio("성향", ["공격적", "안정적", "배당형"])
 
-selected_code, selected_name = None, None
-if not results.empty:
-    selection = st.sidebar.selectbox("검색 결과", results["종목명"] + " (" + results["종목코드"] + ")")
-    selected_name = selection.split(" (")[0]
-    selected_code = selection.split("(")[1].strip(")")
+st.sidebar.subheader("종목명 검색")
+keyword = st.sidebar.text_input("검색", "")
 
-# 즐겨찾기
-st.sidebar.markdown("### ⭐ 즐겨찾기")
-for fav in favorites:
-    name = filtered_stocks[filtered_stocks["종목코드"] == fav]["종목명"].values
-    if len(name):
-        st.sidebar.write(f"- {name[0]} ({fav})")
+# ---- 데이터 로드 및 가공 ----
+df = load_filtered_stocks()
+if not df.empty:
+    df["score"] = pd.to_numeric(df["score"], errors="coerce")
+    df = df.sort_values("score", ascending=False)
+    # NaN score 종목 하단으로 정렬
+    top10 = df[df["score"].notnull()].head(10)
 
-if selected_code and st.sidebar.button("즐겨찾기 추가"):
-    if selected_code not in favorites:
-        favorites.append(selected_code)
-        save_favorites(favorites)
-        st.sidebar.success("추가 완료")
+    st.markdown("## 🏆 투자 성향별 추천 TOP 10")
+    st.dataframe(
+        top10[["종목명", "종목코드", "시장구분", "score"]],
+        hide_index=True,
+        column_config={
+            "score": st.column_config.NumberColumn("score", format="%.2f")
+        },
+        use_container_width=True,
+    )
+else:
+    st.warning("filtered_stocks.csv에 데이터가 없습니다.")
 
-# 상위 10개 종목 추천 테이블 (점수 기준, 투자 성향별)
-def get_top10(df, style):
-    df["score"] = pd.to_numeric(df["score"], errors='coerce')
-    # 투자 성향별 정렬/가중치 예시 (원하면 커스텀 가능)
-    # 여기서는 점수 내림차순 top10만 간단 추출
-    top10 = df.sort_values("score", ascending=False).head(10)
-    return top10
+# ---- 종목 선택 및 상세 정보/차트/뉴스 등 ----
+search_result = search_stocks(keyword, df) if not df.empty else pd.DataFrame()
+st.sidebar.subheader("검색된 종목 선택")
+selected_row = (
+    st.sidebar.selectbox(
+        "검색된 종목",
+        search_result["종목명"] + " (" + search_result["종목코드"] + ")",
+        key="searchbox",
+    ) if not search_result.empty else None
+)
 
-st.markdown("## 🏆 투자 성향별 추천 TOP 10")
-top10 = get_top10(filtered_stocks, style)
-st.table(top10[["종목명", "종목코드", "시장구분", "score"]])
+if selected_row:
+    code = selected_row.split("(")[-1].replace(")", "")
+    stock = df[df["종목코드"] == code].iloc[0]
+    st.markdown(f"### 📌 {stock['종목명']} ({stock['종목코드']})")
+    st.write(f"투자 성향: {style} | 종합 점수: {stock['score'] if pd.notnull(stock['score']) else '—'}")
 
-if selected_code:
-    df = fetch_stock_price(selected_code)
-    if df.empty:
-        st.warning("📉 주가 데이터를 불러올 수 없습니다.")
-    else:
-        df = calculate_indicators(df)
-        # 실제 점수 계산 함수/적용
-        latest_info = {
-            "PER": filtered_stocks[filtered_stocks["종목코드"] == selected_code]["PER"].values[0] if "PER" in filtered_stocks else None,
-            "PBR": filtered_stocks[filtered_stocks["종목코드"] == selected_code]["PBR"].values[0] if "PBR" in filtered_stocks else None,
-            "ROE": filtered_stocks[filtered_stocks["종목코드"] == selected_code]["ROE"].values[0] if "ROE" in filtered_stocks else None,
-            "배당률": filtered_stocks[filtered_stocks["종목코드"] == selected_code]["배당률"].values[0] if "배당률" in filtered_stocks else None
-        }
-        score_info = apply_score_model(latest_info)
-
-        st.subheader(f"📌 {selected_name} ({selected_code})")
-        st.markdown(f"투자 성향: **{style}** | 종합 점수: **{score_info['score']:.2f}**")
-
-        st.plotly_chart(plot_stock_chart(df), use_container_width=True)
-        st.plotly_chart(plot_rsi_macd(df), use_container_width=True)
-
-        # 매수/매도 시점
-        crosses = {
-            "골든크로스": df[(df["EMA5"] > df["EMA20"]) & (df["EMA5"].shift(1) <= df["EMA20"].shift(1))],
-            "데드크로스": df[(df["EMA5"] < df["EMA20"]) & (df["EMA5"].shift(1) >= df["EMA20"].shift(1))]
-        }
-        st.markdown("### 💰 추천 매수/매도 가격")
-        if not crosses["골든크로스"].empty:
-            st.success(f"최근 골든크로스 매수: {crosses['골든크로스']['Close'].iloc[-1]:,.2f}원")
-        if not crosses["데드크로스"].empty:
-            st.warning(f"최근 데드크로스 매도: {crosses['데드크로스']['Close'].iloc[-1]:,.2f}원")
-
-        # 투자 어드바이스
-        st.markdown("### 🧭 투자 판단 요약")
-        if df["RSI"].iloc[-1] > 70:
-            st.warning("과매수 (RSI>70) → 매도 고려")
-        elif df["RSI"].iloc[-1] < 30:
-            st.success("과매도 (RSI<30) → 매수 기회")
+    # ---- 차트 시각화 ----
+    try:
+        df_price = fetch_stock_price(code)
+        if not df_price.empty:
+            df_price = calculate_indicators(df_price)
+            st.plotly_chart(plot_stock_chart(df_price), use_container_width=True)
+            st.plotly_chart(plot_rsi_macd(df_price), use_container_width=True)
         else:
-            st.info("RSI 중간 → 관망")
+            st.warning("주가 데이터 불러오기 실패")
+    except Exception as e:
+        st.error(f"차트 로딩 오류: {e}")
 
-        if df["MACD"].iloc[-1] > df["Signal"].iloc[-1]:
-            st.success("MACD > Signal → 상승 흐름")
+    # ---- 추천 매수/매도 등 ----
+    try:
+        ema_cross_buy = df_price.loc[df_price["EMA_Cross"] == "golden"]
+        ema_cross_sell = df_price.loc[df_price["EMA_Cross"] == "dead"]
+        latest_buy = ema_cross_buy["Close"].iloc[-1] if not ema_cross_buy.empty else None
+        latest_sell = ema_cross_sell["Close"].iloc[-1] if not ema_cross_sell.empty else None
+        st.markdown("### 💲 추천 매수/매도 가격")
+        st.info(f"최근 골든크로스 매수: {latest_buy:.2f}원" if latest_buy else "골든크로스 신호 없음")
+        st.info(f"최근 데드크로스 매도: {latest_sell:.2f}원" if latest_sell else "데드크로스 신호 없음")
+    except Exception as e:
+        st.error(f"추천가 계산 오류: {e}")
+
+    # ---- 투자 판단 요약 ----
+    st.markdown("### 🧭 투자 판단 요약")
+    try:
+        rsi = df_price["RSI"].iloc[-1]
+        macd = df_price["MACD"].iloc[-1]
+        signal = df_price["Signal"].iloc[-1]
+        rsi_text = f"RSI 중간 → {'관망' if 40 <= rsi <= 60 else ('매수' if rsi < 40 else '매도')}"
+        macd_text = (
+            "상승 흐름" if macd > signal else "하락 흐름"
+        )
+        st.info(rsi_text)
+        st.success(f"MACD > Signal → {macd_text}")
+    except Exception as e:
+        st.error(f"지표 요약 오류: {e}")
+
+    # ---- 뉴스 헤드라인 ----
+    st.markdown("### 📰 관련 뉴스")
+    try:
+        news_list = fetch_news_headlines(stock["종목명"])
+        if news_list:
+            for news in news_list:
+                st.write(f"- [{news['title']}]({news['link']})")
         else:
-            st.warning("MACD < Signal → 하락 흐름")
+            st.write("뉴스 없음")
+    except Exception as e:
+        st.error(f"뉴스 크롤링 오류: {e}")
 
-        # 뉴스
-        st.markdown("### 📰 관련 뉴스")
-        news = fetch_news_headlines(selected_name)
-        if news:
-            for title, link in news:
-                st.markdown(f"- [{title}]({link})")
+# ---- 즐겨찾기 ----
+st.sidebar.markdown("## ⭐ 즐겨찾기")
+favs = load_favorites()
+if selected_row:
+    code = selected_row.split("(")[-1].replace(")", "")
+    if st.sidebar.button("즐겨찾기 추가"):
+        if code not in favs:
+            favs.append(code)
+            save_favorites(favs)
+            st.sidebar.success("즐겨찾기 등록됨!")
         else:
-            st.info("뉴스 없음")
+            st.sidebar.info("이미 등록된 종목입니다.")
 
-# 수동 업데이트
-st.sidebar.markdown("### 🔄 수동 데이터 갱신")
+st.sidebar.markdown("## 🔄 수동 데이터 갱신")
 if st.sidebar.button("Update Now"):
-    with st.spinner("업데이트 중..."):
-        try:
-            before = filtered_stocks.copy()
-            update_main()
-            st.cache_data.clear()
-            after = load_filtered_stocks()
-            changes = pd.concat([before, after]).drop_duplicates(keep=False)
-            st.success("업데이트 완료")
-            if not changes.empty:
-                st.info(f"📌 변경 {len(changes)}건")
-                st.dataframe(changes)
-        except Exception as e:
-            st.error("업데이트 실패")
-            st.exception(e)
+    update_main()
+    st.sidebar.success("업데이트 완료!")
 
-# 마지막 업데이트 시간
-try:
-    t = os.path.getmtime("filtered_stocks.csv")
-    st.sidebar.caption(f"📅 마지막 갱신: {datetime.fromtimestamp(t).strftime('%Y-%m-%d %H:%M:%S')}")
-except:
-    st.sidebar.warning("CSV 없음")
+st.sidebar.markdown(f"마지막 업데이트: {pd.Timestamp.now():%Y-%m-%d %H:%M:%S}")
