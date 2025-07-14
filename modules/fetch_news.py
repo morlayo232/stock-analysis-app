@@ -1,14 +1,9 @@
-import requests
-from bs4 import BeautifulSoup
+import feedparser
 
-def fetch_news_headlines(stock_name, max_news=3):
-    url = f"https://search.naver.com/search.naver?where=news&query={stock_name}"
-    headers = {"User-Agent": "Mozilla/5.0"}
-    res = requests.get(url, headers=headers)
-    soup = BeautifulSoup(res.text, "html.parser")
-    news_list = []
-    for a in soup.select(".news_area .news_tit")[:max_news]:
-        title = a.get_text(strip=True)
-        link = a['href']
-        news_list.append({"title": title, "link": link})
-    return news_list
+def fetch_google_news(query, max_items=5):
+    url = f"https://news.google.com/rss/search?q={query}+주식&hl=ko&gl=KR&ceid=KR:ko"
+    feed = feedparser.parse(url)
+    results = []
+    for entry in feed.entries[:max_items]:
+        results.append(entry.title)
+    return results
