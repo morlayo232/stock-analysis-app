@@ -18,26 +18,29 @@ def safe_float(val, default):
         return default
 
 def finalize_scores(df, style="안정형"):
-    # 결측치 및 이상치 보정
+    # 결측치 종목 제외(z-score 계산에서만)
+    valid_mask = (df["PER"].notnull()) & (df["PBR"].notnull()) & (df["ROE"].notnull()) & (df["배당률"].notnull())
+    df_valid = df[valid_mask].copy()
     for col in ["PER", "PBR", "ROE", "배당률"]:
-        df[col] = pd.to_numeric(df[col], errors='coerce')
-        df[col] = df[col].replace([np.inf, -np.inf], np.nan)
-        df[col] = df[col].fillna(df[col].median())
+        df_valid[col] = pd.to_numeric(df_valid[col], errors='coerce')
+        df_valid[col] = df_valid[col].replace([np.inf, -np.inf], np.nan)
+        df_valid[col] = df_valid[col].fillna(df_valid[col].median())
 
-    # z-score 표준화
-    df["PER_z"] = -zscore(df["PER"])
-    df["PBR_z"] = -zscore(df["PBR"])
-    df["ROE_z"] = zscore(df["ROE"])
-    df["DIV_z"] = zscore(df["배당률"])
+    df_valid["PER_z"] = -zscore(df_valid["PER"])
+    df_valid["PBR_z"] = -zscore(df_valid["PBR"])
+    df_valid["ROE_z"] = zscore(df_valid["ROE"])
+    df_valid["DIV_z"] = zscore(df_valid["배당률"])
 
-    # 안정형 가중치 (필요시 style별 커스텀 가능)
     weights = {"PER_z": 0.4, "PBR_z": 0.3, "ROE_z": 0.2, "DIV_z": 0.1}
-    df["score"] = (
-        weights["PER_z"] * df["PER_z"] +
-        weights["PBR_z"] * df["PBR_z"] +
-        weights["ROE_z"] * df["ROE_z"] +
-        weights["DIV_z"] * df["DIV_z"]
+    df_valid["score"] = (
+        weights["PER_z"] * df_valid["PER_z"] +
+        weights["PBR_z"] * df_valid["PBR_z"] +
+        weights["ROE_z"] * df_valid["ROE_z"] +
+        weights["DIV_z"] * df_valid["DIV_z"]
     )
-    # 점수 clipping (극단치 방지)
-    df["score"] = df["score"].clip(-5, 5)
+    df_valid["score"] = df_valid["score"].clip(-5, 5)
+
+    # 결측치 종목은 score NaN으로
+    df["score"] = np.nan
+    df.loc[valid_mask, "score"] = df_valid["score"]
     return df
