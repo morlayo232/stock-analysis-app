@@ -1,171 +1,67 @@
 import streamlit as st
 import pandas as pd
-import json
-from modules.calculate_indicators import calculate_indicators
 from modules.score_utils import finalize_scores
-from modules.chart_utils import plot_stock_chart, plot_rsi_macd
-from modules.fetch_price import fetch_stock_price
-from modules.fetch_news import fetch_news_headlines
-from update_stock_database import main as update_main
+from modules.fetch_news import fetch_google_news
+from pykrx import stock
+from datetime import datetime
+
+# 1. 전체 종목리스트 불러오기 (예: initial_krx_list.csv)
+df_list = pd.read_csv("initial_krx_list.csv")  # 컬럼: 종목코드, 종목명, 시장구분 등
+codes = dict(zip(df_list['종목명'], df_list['종목코드']))
+
+# 2. 개별 종목별 재무/주가/뉴스 일괄 수집
+def fetch_price(code):
+    today = datetime.today().strftime("%Y%m%d")
+    try:
+        df = stock.get_market_ohlcv_by_date(today, today, code)
+        if not df.empty:
+            return int(df['종가'][-1])
+    except Exception:
+        pass
+    return None
+
+def fetch_fundamental(code):
+    today = datetime.today().strftime("%Y%m%d")
+    try:
+        df = stock.get_market_fundamental_by_date(today, today, code)
+        if not df.empty:
+            return {
+                'PER': float(df['PER'][-1]),
+                'PBR': float(df['PBR'][-1]),
+                'ROE': float('nan'),  # 필요시 fetch_naver 등에서 보조 추출
+                '배당수익률': float(df['DIV'][-1])
+            }
+    except Exception:
+        pass
+    return {'PER': None, 'PBR': None, 'ROE': None, '배당수익률': None}
 
 st.set_page_config(page_title="투자 매니저", layout="wide")
+st.title("투자 매니저")
 
-# --- 상단: 제목+구분선 ---
-st.markdown(
-    """
-    <div style="margin-top:20px;">
-        <span style="font-size:2.08rem;font-weight:800;letter-spacing:0.03em;">투자 매니저</span>
-    </div>
-    <hr style="border:0;height:2.5px;background:linear-gradient(90deg,#333,#eee,#333);margin-top:14px;margin-bottom:16px;">
-    """,
-    unsafe_allow_html=True
-)
-st.markdown("""
-<div style="padding:9px 0 7px 0; font-size:1.09rem; color:#259a51; border-bottom: 1.5px solid #e3e3e3;">
-<b>스코어 산정 안내:</b>
-PER·PBR·ROE·배당률을 z-score로 표준화, 투자 성향별 가중치로 종합.<br>
-공격적=기술지표·수익률↑, 안정적=저PBR·저PER·ROE↑, 배당형=배당↑.  
-상위 10개는 "투자 성향별 추천 TOP10"에 즉시 반영.
-</div>
-""", unsafe_allow_html=True)
+style = st.sidebar.radio("투자 성향", ["aggressive", "stable", "dividend"], horizontal=True)
 
-# --- sidebar ---
-st.sidebar.header("투자 성향 선택")
-style = st.sidebar.radio("성향", ["공격적", "안정적", "배당형"])
-st.sidebar.subheader("종목명 검색")
-keyword = st.sidebar.text_input("검색", "")
+data = []
+# 전체 종목 반복 (많으니 속도/트래픽 고려해 1회만 실행 또는 DB 저장 추천)
+for name, code in codes.items():
+    price = fetch_price(code)
+    fin = fetch_fundamental(code)
+    data.append({
+        "종목명": name, "종목코드": code, "현재가": price,
+        "PER": fin["PER"], "PBR": fin["PBR"], "ROE": fin["ROE"], "배당수익률": fin["배당수익률"]
+    })
 
-def search_stocks(keyword, df):
-    return df[df["종목명"].str.contains(keyword, case=False)] if keyword else pd.DataFrame()
-@st.cache_data(ttl=86400)
-def load_filtered_stocks():
-    return pd.read_csv("filtered_stocks.csv", dtype=str)
-
-df = load_filtered_stocks()
-search_result = search_stocks(keyword, df) if not df.empty else pd.DataFrame()
-selected_row = None
-opt_list = []
-if not search_result.empty:
-    opt_list = search_result["종목명"] + " (" + search_result["종목코드"] + ")"
-if opt_list and len(opt_list) > 0:
-    selected_row = st.sidebar.selectbox("검색된 종목", opt_list, key="searchbox")
-elif not df.empty:
-    selected_row = f'{df.iloc[0]["종목명"]} ({df.iloc[0]["종목코드"]})'
-else:
-    selected_row = None
-
-st.sidebar.markdown("---")
-st.sidebar.markdown("## ⭐ 즐겨찾기")
-FAV_FILE = "favorites.json"
-def load_favorites():
-    try:
-        with open(FAV_FILE, "r") as f:
-            return json.load(f)
-    except:
-        return []
-def save_favorites(favs):
-    with open(FAV_FILE, "w") as f:
-        json.dump(favs, f, indent=2)
-favs = load_favorites()
-
-st.sidebar.markdown("## 🔄 데이터 갱신")
-if st.sidebar.button("Update Now"):
-    update_main()
-    st.sidebar.success("업데이트 완료!")
-st.sidebar.markdown(f"마지막 업데이트: {pd.Timestamp.now():%Y-%m-%d %H:%M:%S}")
-
-# --- style별 점수 적용, 추천 TOP10 카드 ---
+df = pd.DataFrame(data)
 df = finalize_scores(df, style=style)
-df["score"] = pd.to_numeric(df["score"], errors="coerce")
-df_disp = df[df["score"].notnull()].sort_values("score", ascending=False)
-top10 = df_disp.head(10)
 
-st.markdown("## 🏆 투자 성향별 추천 TOP 10")
-st.markdown('<div style="display:flex;flex-wrap:wrap;gap:17px;">', unsafe_allow_html=True)
-for _, row in top10.iterrows():
-    st.markdown(f"""
-    <div style="flex:1 1 250px; background:#181b1e; border-radius:13px; border:1px solid #2d2d2d;
-                box-shadow:0 2px 7px #0002; margin-bottom:0.6em; padding:1.13em 1em;">
-        <div style="font-size:1.07em;font-weight:700;color:#f7f7f7;">
-            <a href="#종목_{row['종목코드']}" style="color:inherit;text-decoration:none;">{row['종목명']}</a>
-        </div>
-        <div style="margin:2px 0 7px 0;color:#aaa;">{row['종목코드']} | {row['시장구분']}</div>
-        <div style="font-size:1.21em;color:#19b763;font-weight:700;">점수 {row['score']:.2f}</div>
-    </div>
-    """, unsafe_allow_html=True)
-st.markdown('</div>', unsafe_allow_html=True)
+st.subheader("투자 성향별 TOP 10")
+st.dataframe(df.sort_values("score", ascending=False).head(10)[["종목명", "종목코드", "현재가", "PER", "PBR", "ROE", "배당수익률", "score"]])
 
-# --- 종목 상세 ---
-if selected_row:
-    code = selected_row.split("(")[-1].replace(")", "")
-    stock = df[df["종목코드"] == code].iloc[0]
-    st.markdown(f'<a id="종목_{stock["종목코드"]}"></a>', unsafe_allow_html=True)
-    st.markdown(f"""
-    <div style="margin:24px 0 7px 0;display:flex;align-items:center;">
-        <span style="font-size:1.3em;font-weight:700;">📌 {stock['종목명']} ({stock['종목코드']})</span>
-        <span style="margin-left:15px;color:#d9b6ea;">| 투자 성향 <b>{style}</b> | 점수 <b>{stock['score'] if pd.notnull(stock['score']) else '—'}</b></span>
-    </div>
-    """, unsafe_allow_html=True)
-    def score_eval(score):
-        if pd.isnull(score): return "평가 불가(데이터 부족)"
-        score = float(score)
-        if score > 1.5: return "매우 매력적 (상위 10%)"
-        elif score > 0.8: return "양호 (상위 30%)"
-        elif score > 0: return "보통 (중간)"
-        elif score > -0.8: return "저평가/관망"
-        else: return "매력 낮음/주의"
-    st.success(f"종목 평가: {score_eval(stock['score'])}")
-
-    try:
-        df_price = fetch_stock_price(code)
-        if not df_price.empty:
-            df_price = calculate_indicators(df_price)
-            st.plotly_chart(plot_stock_chart(df_price), use_container_width=True)
-            st.plotly_chart(plot_rsi_macd(df_price), use_container_width=True)
-        else:
-            st.warning("주가 데이터 불러오기 실패")
-    except Exception as e:
-        st.error(f"차트 로딩 오류: {e}")
-
-    try:
-        ema_cross_buy = df_price[df_price["EMA_Cross"] == "golden"] if "EMA_Cross" in df_price.columns else pd.DataFrame()
-        ema_cross_sell = df_price[df_price["EMA_Cross"] == "dead"] if "EMA_Cross" in df_price.columns else pd.DataFrame()
-        latest_buy = float(ema_cross_buy["Close"].iloc[-1]) if not ema_cross_buy.empty else None
-        latest_sell = float(ema_cross_sell["Close"].iloc[-1]) if not ema_cross_sell.empty else None
-        st.markdown("### 💲 추천 매수/매도 가격")
-        st.info(f"최근 골든크로스 매수: {latest_buy:.2f}원" if latest_buy is not None else "골든크로스 신호 없음")
-        st.info(f"최근 데드크로스 매도: {latest_sell:.2f}원" if latest_sell is not None else "데드크로스 신호 없음")
-    except Exception as e:
-        st.error(f"추천가 계산 오류: {e}")
-
-    try:
-        rsi = float(df_price["RSI"].iloc[-1])
-        macd = float(df_price["MACD"].iloc[-1])
-        signal = float(df_price["Signal"].iloc[-1])
-        st.markdown("### 🧭 투자 판단 요약")
-        rsi_eval = "관망" if 40 <= rsi <= 60 else ("매수" if rsi < 40 else "매도")
-        rsi_text = f"RSI {rsi:.1f} → {rsi_eval} ({'과매도' if rsi<30 else ('과매수' if rsi>70 else '')})"
-        macd_text = f"MACD({macd:.2f}) {'>' if macd > signal else '<'} Signal({signal:.2f}) → {'상승 흐름' if macd > signal else '하락 흐름'}"
-        st.info(rsi_text)
-        st.success(macd_text)
-    except Exception as e:
-        st.error(f"지표 요약 오류: {e}")
-
-    st.markdown("### 📰 관련 뉴스")
-    try:
-        news_list = fetch_news_headlines(stock["종목명"])
-        if news_list:
-            for news in news_list:
-                st.markdown(f'<div style="margin-bottom:6px;">📰 <a href="{news["link"]}" target="_blank">{news["title"]}</a></div>', unsafe_allow_html=True)
-        else:
-            st.info("뉴스 없음")
-    except Exception as e:
-        st.error(f"뉴스 크롤링 오류: {e}")
-
-    if st.button("⭐ 이 종목 즐겨찾기 추가"):
-        if code not in favs:
-            favs.append(code)
-            save_favorites(favs)
-            st.success("즐겨찾기 등록됨!")
-        else:
-            st.info("이미 등록된 종목입니다.")
+st.subheader("종목별 최신 뉴스 (구글 뉴스)")
+for _, row in df.sort_values("score", ascending=False).head(10).iterrows():
+    st.markdown(f"**{row['종목명']} ({row['종목코드']})**")
+    news_list = fetch_google_news(row['종목명'])
+    if news_list:
+        for n in news_list:
+            st.markdown(f"- {n}")
+    else:
+        st.write("뉴스 없음")
