@@ -1,32 +1,39 @@
-import plotly.graph_objects as go
+import plotly.graph_objs as go
 
 def plot_stock_chart(df):
     fig = go.Figure()
-    fig.add_trace(go.Scatter(x=df["Date"], y=df["Close"], name="종가", line=dict(color="blue")))
-    fig.add_trace(go.Scatter(x=df["Date"], y=df["EMA5"], name="EMA 5일", line=dict(color="orange")))
-    fig.add_trace(go.Scatter(x=df["Date"], y=df["EMA20"], name="EMA 20일", line=dict(color="green")))
-
-    for i in range(1, len(df)):
-        if df["EMA5"].iloc[i-1] < df["EMA20"].iloc[i-1] and df["EMA5"].iloc[i] > df["EMA20"].iloc[i]:
-            fig.add_trace(go.Scatter(x=[df["Date"].iloc[i]], y=[df["Close"].iloc[i]], mode="markers",
-                                     marker_symbol="triangle-up", marker_color="green", marker_size=10,
-                                     name="골든크로스 매수", showlegend=False))
-        elif df["EMA5"].iloc[i-1] > df["EMA20"].iloc[i-1] and df["EMA5"].iloc[i] < df["EMA20"].iloc[i]:
-            fig.add_trace(go.Scatter(x=[df["Date"].iloc[i]], y=[df["Close"].iloc[i]], mode="markers",
-                                     marker_symbol="triangle-down", marker_color="red", marker_size=10,
-                                     name="데드크로스 매도", showlegend=False))
-
-    fig.update_layout(title="📈 주가 + 이동평균선 + 매수/매도 신호",
-                      xaxis_title="날짜", yaxis_title="가격", hovermode="x unified")
+    fig.add_trace(go.Scatter(x=df["Date"], y=df["Close"], mode="lines", name="종가", line=dict(color="royalblue")))
+    fig.add_trace(go.Scatter(x=df["Date"], y=df["EMA5"], mode="lines", name="EMA 5일", line=dict(color="orange")))
+    fig.add_trace(go.Scatter(x=df["Date"], y=df["EMA20"], mode="lines", name="EMA 20일", line=dict(color="green")))
+    buy_signals = df[df["EMA_Cross"] == "golden"]
+    sell_signals = df[df["EMA_Cross"] == "dead"]
+    fig.add_trace(go.Scatter(
+        x=buy_signals["Date"], y=buy_signals["Close"], mode="markers",
+        name="매수", marker=dict(color="limegreen", symbol="triangle-up", size=14)
+    ))
+    fig.add_trace(go.Scatter(
+        x=sell_signals["Date"], y=sell_signals["Close"], mode="markers",
+        name="매도", marker=dict(color="red", symbol="triangle-down", size=14)
+    ))
+    fig.update_layout(
+        margin=dict(l=10, r=10, t=20, b=10),
+        height=340,
+        xaxis_title="날짜",
+        yaxis_title="가격",
+        template="plotly_white"
+    )
     return fig
 
 def plot_rsi_macd(df):
     fig = go.Figure()
-    fig.add_trace(go.Scatter(x=df["Date"], y=df["RSI"], name="RSI", line=dict(color="purple")))
-    fig.add_trace(go.Scatter(x=df["Date"], y=[70]*len(df), name="과매수선 (70)", line=dict(color="red", dash="dot")))
-    fig.add_trace(go.Scatter(x=df["Date"], y=[30]*len(df), name="과매도선 (30)", line=dict(color="blue", dash="dot")))
-    fig.add_trace(go.Scatter(x=df["Date"], y=df["MACD"], name="MACD", line=dict(color="black")))
-    fig.add_trace(go.Scatter(x=df["Date"], y=df["Signal"], name="Signal", line=dict(color="orange")))
-
-    fig.update_layout(title="📊 RSI & MACD 분석", xaxis_title="날짜", hovermode="x unified")
+    fig.add_trace(go.Scatter(x=df["Date"], y=df["RSI"], name="RSI", line=dict(color="slateblue")))
+    fig.add_trace(go.Scatter(x=df["Date"], y=df["MACD"], name="MACD", line=dict(color="deeppink")))
+    fig.add_trace(go.Scatter(x=df["Date"], y=df["Signal"], name="Signal", line=dict(color="gray")))
+    fig.update_layout(
+        margin=dict(l=10, r=10, t=20, b=10),
+        height=210,
+        xaxis_title="날짜",
+        yaxis_title="지표",
+        template="plotly_white"
+    )
     return fig
