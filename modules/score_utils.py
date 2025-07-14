@@ -6,7 +6,7 @@ DEFAULT_FIN = ['PER', 'PBR', 'ROE', '배당수익률']
 def safe_float(val):
     try:
         return float(str(val).replace(",", "").replace("%", ""))
-    except Exception:
+    except:
         return np.nan
 
 def safe_zscore(arr):
@@ -17,19 +17,34 @@ def safe_zscore(arr):
         return np.zeros_like(arr)
     return (arr - mean) / std
 
+def assess_reliability(row):
+    count = sum(~np.isnan([row[c] for c in DEFAULT_FIN]))
+    if count >= 4:
+        return 'A'
+    elif count == 3:
+        return 'B'
+    else:
+        return 'C'
+
 def finalize_scores(df, style="aggressive"):
     for col in DEFAULT_FIN:
         df[col] = df[col].apply(safe_float)
     for col in DEFAULT_FIN:
         df[f'z_{col}'] = safe_zscore(df[col])
-    if style == "aggressive":
-        score = -df['z_PER']*0.25 - df['z_PBR']*0.25 + df['z_ROE']*0.35 + df['z_배당수익률']*0.15
-    elif style == "stable":
-        score = -df['z_PER']*0.3 - df['z_PBR']*0.4 + df['z_ROE']*0.2 + df['z_배당수익률']*0.1
-    elif style == "dividend":
-        score = df['z_배당수익률']*0.7 - df['z_PBR']*0.2 - df['z_PER']*0.1
-    else:
-        score = np.zeros(len(df))
-    score = np.where(np.isnan(score), 0, score)
-    df['score'] = score
+    scores = []
+    for _, row in df.iterrows():
+        z = {k: row.get(f'z_{k}', np.nan) for k in DEFAULT_FIN}
+        weights = {
+            "aggressive": {"PER": -0.25, "PBR": -0.25, "ROE": 0.35, "배당수익률": 0.15},
+            "stable":     {"PER": -0.3,  "PBR": -0.4,  "ROE": 0.2,  "배당수익률": 0.1},
+            "dividend":   {"PER": -0.1,  "PBR": -0.2,  "ROE": 0.0,  "배당수익률": 0.7},
+        }[style]
+        valid = {k: w for k, w in weights.items() if not np.isnan(z[k])}
+        if not valid:
+            scores.append(0)
+            continue
+        total_w = sum(abs(w) for w in valid.values())
+        score = sum(z[k] * w for k, w in valid.items()) / total_w
+        scores.append(score)
+    df['score'] = scores
     return df
