@@ -2,7 +2,7 @@ import pandas as pd
 import time
 from modules.fetch_price import fetch_stock_price
 from modules.calculate_indicators import calculate_indicators
-from modules.score_utils import apply_score_model, DEFAULT_FIN, safe_float
+from modules.score_utils import safe_float, finalize_scores, DEFAULT_FIN
 from modules.fetch_naver import get_naver_financials
 from modules.fetch_daum import get_daum_financials
 
@@ -33,15 +33,13 @@ def main():
                 "Signal": round(latest["Signal"], 2),
                 "수익률(3M)": round((df["Close"].iloc[-1] / df["Close"].iloc[0] - 1) * 100, 2)
             }
-
-            # --- 재무 크롤링(네이버 우선, 실패시 다음/기본값) ---
+            # --- 네이버(1차) ---
             per, pbr, roe, dividend = get_naver_financials(code)
             per = safe_float(per, DEFAULT_FIN["PER"])
             pbr = safe_float(pbr, DEFAULT_FIN["PBR"])
             roe = safe_float(roe, DEFAULT_FIN["ROE"])
             dividend = safe_float(dividend, DEFAULT_FIN["배당률"])
-
-            # 네이버 값이 기본값과 동일하면 다음 금융에서 재시도
+            # --- 다음(2차) ---
             if any([
                 per == DEFAULT_FIN["PER"],
                 pbr == DEFAULT_FIN["PBR"],
@@ -53,25 +51,22 @@ def main():
                 pbr = pbr if pbr != DEFAULT_FIN["PBR"] else safe_float(pbr2, DEFAULT_FIN["PBR"])
                 roe = roe if roe != DEFAULT_FIN["ROE"] else safe_float(roe2, DEFAULT_FIN["ROE"])
                 dividend = dividend if dividend != DEFAULT_FIN["배당률"] else safe_float(dividend2, DEFAULT_FIN["배당률"])
-
             result["PER"] = per
             result["PBR"] = pbr
             result["ROE"] = roe
             result["배당률"] = dividend
 
-            result = apply_score_model(result)  # 점수 계산
-
             results.append(result)
-            print(f"✅ {code} {name} 처리 완료 / 점수 {result['score']}")
-
+            print(f"✅ {code} {name} 처리 완료")
             time.sleep(0.3)
-
         except Exception as e:
             print(f"❌ {code} {name} 오류: {e}")
             continue
 
     df_result = pd.DataFrame(results)
     if not df_result.empty:
+        # --- 점수 고도화(표준화+가중치+이상치 안전처리) 적용 ---
+        df_result = finalize_scores(df_result, style="안정형")
         df_result.to_csv("filtered_stocks.csv", index=False, encoding="utf-8-sig")
         print("✅ filtered_stocks.csv 저장 완료")
     else:
