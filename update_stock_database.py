@@ -6,40 +6,14 @@ from modules.score_utils import safe_float, finalize_scores, DEFAULT_FIN
 from modules.fetch_naver import get_naver_financials
 from modules.fetch_daum import get_daum_financials
 
-import FinanceDataReader as fdr
-
-def get_fdr_financials(code):
-    try:
-        df_fdr = fdr.StockListing('KRX')
-        row = df_fdr[df_fdr['Code'] == code]
-        if row.empty:
-            return None, None, None, None
-        per = row['PER'].values[0] if 'PER' in row else None
-        pbr = row['PBR'].values[0] if 'PBR' in row else None
-        roe = row['ROE'].values[0] if 'ROE' in row else None
-        dividend = row['Dividend Yield'].values[0] if 'Dividend Yield' in row else None
-        print(f"[FDR FIN] {code}: PER={per}, PBR={pbr}, ROE={roe}, 배당률={dividend}")
-        return per, pbr, roe, dividend
-    except Exception as e:
-        print(f"[FDR FIN 실패] {code}: {e}")
-        return None, None, None, None
-
 def get_financials_full_backup(code):
     per, pbr, roe, dividend = get_naver_financials(code)
-    # 1차 실패시 다음
     if not all([per, pbr, roe, dividend]):
         per2, pbr2, roe2, dividend2 = get_daum_financials(code)
         per = per or per2
         pbr = pbr or pbr2
         roe = roe or roe2
         dividend = dividend or dividend2
-    # 2차 실패시 FDR(패키지) 활용
-    if not all([per, pbr, roe, dividend]):
-        per3, pbr3, roe3, dividend3 = get_fdr_financials(code)
-        per = per or per3
-        pbr = pbr or pbr3
-        roe = roe or roe3
-        dividend = dividend or dividend3
     return per, pbr, roe, dividend
 
 def get_krx_list():
@@ -80,7 +54,6 @@ def main():
             result["ROE"] = roe
             result["배당률"] = dividend
 
-            # 데이터 미취득 종목 기록
             if not all([per, pbr, roe, dividend]):
                 missed_list.append({"code": code, "name": name})
 
@@ -99,7 +72,6 @@ def main():
     else:
         print("⚠️ 저장할 데이터가 없습니다.")
 
-    # 미취득 종목 리포트 저장
     if missed_list:
         pd.DataFrame(missed_list).to_csv("missed_financials.csv", index=False, encoding="utf-8-sig")
         print(f"⚠️ 미취득 종목 {len(missed_list)}건: missed_financials.csv로 저장")
