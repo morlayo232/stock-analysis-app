@@ -2,39 +2,60 @@ import streamlit as st
 import pandas as pd
 import json
 from modules.calculate_indicators import calculate_indicators
-from modules.score_utils import finalize_scores, safe_float, DEFAULT_FIN
+from modules.score_utils import finalize_scores
 from modules.chart_utils import plot_stock_chart, plot_rsi_macd
 from modules.fetch_price import fetch_stock_price
 from modules.fetch_news import fetch_news_headlines
 from update_stock_database import main as update_main
 
-# ----------- UI/로고/설명/스코어 기준 안내 -----------
-st.set_page_config(page_title="📊 한국 주식 분석", layout="wide")
-LOGO_PATH = "logo_tynex.png"  # 반드시 루트에 저장
+# ---- 상단 로고/투자매니저 ----
+st.set_page_config(page_title="투자 매니저", layout="wide")
+LOGO_PATH = "logo_tynex.png"
 
-col1, col2 = st.columns([0.15, 0.85])
-with col1:
-    st.image(LOGO_PATH, width=90)
-with col2:
-    st.markdown("""
-    <h1 style="margin-bottom:0;margin-top:5px;font-size:2.2rem;">한국 주식 시장 투자 매력도 분석</h1>
-    """, unsafe_allow_html=True)
-
+with st.container():
+    col1, col2 = st.columns([0.19, 0.81])
+    with col1:
+        st.image(LOGO_PATH, width=130)
+    with col2:
+        st.markdown("""
+        <div style="margin-top:22px;display:flex;align-items:center;">
+            <span style="font-size:2.0rem;font-weight:800;letter-spacing:0.02em;">투자 매니저</span>
+            <span style="flex:1;height:2px;background:linear-gradient(to right,#f2f2f2,#eaeaea,#fff);margin-left:16px;"></span>
+        </div>
+        """, unsafe_allow_html=True)
+st.markdown('<hr style="margin:0 0 18px 0;">', unsafe_allow_html=True)
 st.markdown("""
-<div style="padding:8px 0 5px 0; font-size:1rem; color: #444; border-bottom: 1px solid #eee;">
-<b>스코어 산정 방식 안내:</b>  
+<div style="padding:7px 0 6px 0; font-size:1.08rem; color:#485; border-bottom: 1.5px solid #e3e3e3;">
+<b>스코어 산정 안내:</b>
 PER·PBR·ROE·배당률을 z-score로 표준화, 투자 성향별 가중치로 종합.<br>
-공격적: 기술지표·단기수익률↑, 안정적: 저PBR·저PER·ROE↑, 배당형: 배당률↑.<br>
-상위 10점은 "투자 성향별 추천 TOP10"에 실시간 반영.  
+공격적=기술지표·수익률↑, 안정적=저PBR·저PER·ROE↑, 배당형=배당↑.  
+상위 10개는 "투자 성향별 추천 TOP10"에 즉시 반영.
 </div>
 """, unsafe_allow_html=True)
 
-# ----------- 사이드바 -----------
+# ---- sidebar ----
 st.sidebar.header("투자 성향 선택")
 style = st.sidebar.radio("성향", ["공격적", "안정적", "배당형"])
 
 st.sidebar.subheader("종목명 검색")
 keyword = st.sidebar.text_input("검색", "")
+
+def search_stocks(keyword, df):
+    return df[df["종목명"].str.contains(keyword, case=False)] if keyword else pd.DataFrame()
+@st.cache_data(ttl=86400)
+def load_filtered_stocks():
+    return pd.read_csv("filtered_stocks.csv", dtype=str)
+
+df = load_filtered_stocks()
+search_result = search_stocks(keyword, df) if not df.empty else pd.DataFrame()
+selected_row = None
+opt_list = []
+if not search_result.empty:
+    opt_list = search_result["종목명"] + " (" + search_result["종목코드"] + ")"
+if opt_list:
+    selected_row = st.sidebar.selectbox("검색된 종목", opt_list, key="searchbox")
+elif not df.empty:
+    selected_row = f'{df.iloc[0]["종목명"]} ({df.iloc[0]["종목코드"]})'
 
 st.sidebar.markdown("---")
 st.sidebar.markdown("## ⭐ 즐겨찾기")
@@ -54,54 +75,40 @@ st.sidebar.markdown("## 🔄 데이터 갱신")
 if st.sidebar.button("Update Now"):
     update_main()
     st.sidebar.success("업데이트 완료!")
-
 st.sidebar.markdown(f"마지막 업데이트: {pd.Timestamp.now():%Y-%m-%d %H:%M:%S}")
 
-# ----------- 데이터 로딩 -----------
-@st.cache_data(ttl=86400)
-def load_filtered_stocks():
-    return pd.read_csv("filtered_stocks.csv", dtype=str)
-df = load_filtered_stocks()
+# ---- style별 점수 자동적용/추천 TOP10 카드 ----
+df = finalize_scores(df, style=style)
+df["score"] = pd.to_numeric(df["score"], errors="coerce")
+df_disp = df[df["score"].notnull()].sort_values("score", ascending=False)
+top10 = df_disp.head(10)
 
-# ----------- 성향별 추천 TOP10 테이블/링크 -----------
-if not df.empty:
-    df["score"] = pd.to_numeric(df["score"], errors="coerce")
-    df_disp = df[df["score"].notnull()].sort_values("score", ascending=False)
-    top10 = df_disp.head(10)
-    st.markdown("## 🏆 투자 성향별 추천 TOP 10")
+st.markdown("## 🏆 투자 성향별 추천 TOP 10")
+st.markdown('<div style="display:flex;flex-wrap:wrap;gap:18px;">', unsafe_allow_html=True)
+for _, row in top10.iterrows():
+    st.markdown(f"""
+    <div style="flex:1 1 260px; background:#fff; border-radius:13px; border:1px solid #e6e6e6;
+                box-shadow:0 1.5px 9px #0001; margin-bottom:0.6em; padding:1.2em 1em;">
+        <div style="font-size:1.1em;font-weight:700;color:#365;">
+            <a href="#종목_{row['종목코드']}" style="color:inherit;text-decoration:none;">{row['종목명']}</a>
+        </div>
+        <div style="margin:2px 0 7px 0;color:#777;">{row['종목코드']} | {row['시장구분']}</div>
+        <div style="font-size:1.23em;color:#19b763;font-weight:700;">점수 {row['score']:.2f}</div>
+    </div>
+    """, unsafe_allow_html=True)
+st.markdown('</div>', unsafe_allow_html=True)
 
-    # 종목명에 바로가기 링크 (Streamlit에서 key 기반 selectbox와 연동)
-    def make_link(row):
-        return f'<a href="#종목_{row["종목코드"]}" style="text-decoration:none;">{row["종목명"]}</a>'
-    table_html = top10.assign(종목명=top10.apply(make_link, axis=1))\
-        .to_html(escape=False, index=False, columns=["종목명", "종목코드", "시장구분", "score"], float_format="%.2f", border=0)
-    st.markdown(table_html, unsafe_allow_html=True)
-else:
-    st.warning("filtered_stocks.csv에 데이터가 없습니다.")
-
-# ----------- 종목 상세 자동 연동/검색/하이라이트 -----------
-def search_stocks(keyword, df):
-    return df[df["종목명"].str.contains(keyword, case=False)] if keyword else pd.DataFrame()
-search_result = search_stocks(keyword, df) if not df.empty else pd.DataFrame()
-selected_row = None
-if not search_result.empty:
-    opt_list = search_result["종목명"] + " (" + search_result["종목코드"] + ")"
-    selected_row = st.sidebar.selectbox("검색된 종목", opt_list, key="searchbox")
-elif not df.empty:
-    # TOP10 첫번째 자동 선택
-    selected_row = f'{df_disp.iloc[0]["종목명"]} ({df_disp.iloc[0]["종목코드"]})'
-
+# ---- 종목 상세 ----
 if selected_row:
     code = selected_row.split("(")[-1].replace(")", "")
     stock = df[df["종목코드"] == code].iloc[0]
-    # 앵커(jump) 추가
     st.markdown(f'<a id="종목_{stock["종목코드"]}"></a>', unsafe_allow_html=True)
     st.markdown(f"""
-    <h2 style="margin-top:12px;">📌 {stock['종목명']} ({stock['종목코드']})</h2>
-    <span style="font-size:1.1rem;">투자 성향: <b>{style}</b> | 종합 점수: <b>{stock['score'] if pd.notnull(stock['score']) else '—'}</b></span>
+    <div style="margin:24px 0 7px 0;display:flex;align-items:center;">
+        <span style="font-size:1.3em;font-weight:700;">📌 {stock['종목명']} ({stock['종목코드']})</span>
+        <span style="margin-left:15px;color:#868;">| 투자 성향 <b>{style}</b> | 점수 <b>{stock['score'] if pd.notnull(stock['score']) else '—'}</b></span>
+    </div>
     """, unsafe_allow_html=True)
-
-    # ----------- 종목 평가 설명 -----------
     def score_eval(score):
         if pd.isnull(score): return "평가 불가(데이터 부족)"
         score = float(score)
@@ -112,7 +119,6 @@ if selected_row:
         else: return "매력 낮음/주의"
     st.success(f"종목 평가: {score_eval(stock['score'])}")
 
-    # ----------- 차트(시인성 개선) -----------
     try:
         df_price = fetch_stock_price(code)
         if not df_price.empty:
@@ -124,22 +130,20 @@ if selected_row:
     except Exception as e:
         st.error(f"차트 로딩 오류: {e}")
 
-    # ----------- 추천 매수/매도가 -----------
     try:
-        if "EMA_Cross" in df_price.columns:
-            ema_cross_buy = df_price.loc[df_price["EMA_Cross"] == "golden"]
-            ema_cross_sell = df_price.loc[df_price["EMA_Cross"] == "dead"]
+        if "EMA_Cross" in df_price.columns and not df_price["EMA_Cross"].isnull().all():
+            ema_cross_buy = df_price[df_price["EMA_Cross"] == "golden"]
+            ema_cross_sell = df_price[df_price["EMA_Cross"] == "dead"]
             latest_buy = ema_cross_buy["Close"].iloc[-1] if not ema_cross_buy.empty else None
             latest_sell = ema_cross_sell["Close"].iloc[-1] if not ema_cross_sell.empty else None
             st.markdown("### 💲 추천 매수/매도 가격")
             st.info(f"최근 골든크로스 매수: {latest_buy:.2f}원" if latest_buy else "골든크로스 신호 없음")
             st.info(f"최근 데드크로스 매도: {latest_sell:.2f}원" if latest_sell else "데드크로스 신호 없음")
         else:
-            st.warning("추천가 계산 오류: 'EMA_Cross' 미생성")
+            st.warning("추천가 신호 없음")
     except Exception as e:
         st.error(f"추천가 계산 오류: {e}")
 
-    # ----------- 투자 판단 세부 설명 -----------
     try:
         rsi = float(df_price["RSI"].iloc[-1])
         macd = float(df_price["MACD"].iloc[-1])
@@ -153,19 +157,17 @@ if selected_row:
     except Exception as e:
         st.error(f"지표 요약 오류: {e}")
 
-    # ----------- 뉴스 헤드라인(없을 시 안내) -----------
     st.markdown("### 📰 관련 뉴스")
     try:
         news_list = fetch_news_headlines(stock["종목명"])
         if news_list:
             for news in news_list:
-                st.write(f"- [{news['title']}]({news['link']})")
+                st.markdown(f'<div style="margin-bottom:6px;">📰 <a href="{news["link"]}" target="_blank">{news["title"]}</a></div>', unsafe_allow_html=True)
         else:
-            st.write("뉴스 없음")
+            st.info("뉴스 없음")
     except Exception as e:
         st.error(f"뉴스 크롤링 오류: {e}")
 
-    # ----------- 즐겨찾기 -----------
     if st.button("⭐ 이 종목 즐겨찾기 추가"):
         if code not in favs:
             favs.append(code)
