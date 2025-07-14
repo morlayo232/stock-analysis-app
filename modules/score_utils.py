@@ -18,7 +18,6 @@ def safe_float(val, default):
         return default
 
 def finalize_scores(df, style="안정형"):
-    # 결측치 종목 제외(z-score 계산에서만)
     valid_mask = (df["PER"].notnull()) & (df["PBR"].notnull()) & (df["ROE"].notnull()) & (df["배당률"].notnull())
     df_valid = df[valid_mask].copy()
     for col in ["PER", "PBR", "ROE", "배당률"]:
@@ -31,7 +30,12 @@ def finalize_scores(df, style="안정형"):
     df_valid["ROE_z"] = zscore(df_valid["ROE"])
     df_valid["DIV_z"] = zscore(df_valid["배당률"])
 
-    weights = {"PER_z": 0.4, "PBR_z": 0.3, "ROE_z": 0.2, "DIV_z": 0.1}
+    if style == "공격적":
+        weights = {"PER_z": 0.3, "PBR_z": 0.2, "ROE_z": 0.2, "DIV_z": 0.1}
+    elif style == "배당형":
+        weights = {"PER_z": 0.1, "PBR_z": 0.1, "ROE_z": 0.1, "DIV_z": 0.5}
+    else:  # 안정형
+        weights = {"PER_z": 0.4, "PBR_z": 0.3, "ROE_z": 0.2, "DIV_z": 0.1}
     df_valid["score"] = (
         weights["PER_z"] * df_valid["PER_z"] +
         weights["PBR_z"] * df_valid["PBR_z"] +
@@ -39,8 +43,6 @@ def finalize_scores(df, style="안정형"):
         weights["DIV_z"] * df_valid["DIV_z"]
     )
     df_valid["score"] = df_valid["score"].clip(-5, 5)
-
-    # 결측치 종목은 score NaN으로
     df["score"] = np.nan
     df.loc[valid_mask, "score"] = df_valid["score"]
     return df
