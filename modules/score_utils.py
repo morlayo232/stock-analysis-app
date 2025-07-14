@@ -1,45 +1,35 @@
 import numpy as np
 import pandas as pd
-from scipy.stats import zscore
 
-def safe_float(val, default):
+DEFAULT_FIN = ['PER', 'PBR', 'ROE', '배당수익률']
+
+def safe_float(val):
     try:
-        sval = str(val).replace(',', '').replace('%', '').replace('N/A', '').replace('-', '').replace('\n', '').replace('l', '').strip().upper()
-        if sval in ['', 'NONE', 'NAN']:
-            return default
-        return float(sval)
+        return float(str(val).replace(",", "").replace("%", ""))
     except Exception:
-        return default
+        return np.nan
 
-DEFAULT_FIN = {
-    "PER": 10.0,
-    "PBR": 1.0,
-    "ROE": 8.0,
-    "배당률": 2.0
-}
+def safe_zscore(arr):
+    arr = np.array(arr, dtype=np.float64)
+    mean = np.nanmean(arr)
+    std = np.nanstd(arr)
+    if std == 0 or np.isnan(std):
+        return np.zeros_like(arr)
+    return (arr - mean) / std
 
-def finalize_scores(df, style="안정형"):
-    fin_cols = ["PER", "PBR", "ROE", "배당률"]
-    for col in fin_cols:
-        df[col] = pd.to_numeric(df[col], errors="coerce")
-    valid_mask = df[fin_cols].notnull().all(axis=1)
-    df_valid = df[valid_mask].copy()
-    df_valid["PER_z"] = -zscore(df_valid["PER"])
-    df_valid["PBR_z"] = -zscore(df_valid["PBR"])
-    df_valid["ROE_z"] = zscore(df_valid["ROE"])
-    df_valid["DIV_z"] = zscore(df_valid["배당률"])
-    if style == "공격적":
-        weights = {"PER_z": 0.32, "PBR_z": 0.17, "ROE_z": 0.31, "DIV_z": 0.2}
-    elif style == "배당형":
-        weights = {"PER_z": 0.08, "PBR_z": 0.07, "ROE_z": 0.18, "DIV_z": 0.67}
-    else:  # 안정형
-        weights = {"PER_z": 0.35, "PBR_z": 0.28, "ROE_z": 0.31, "DIV_z": 0.06}
-    df_valid["score"] = (
-        weights["PER_z"] * df_valid["PER_z"] +
-        weights["PBR_z"] * df_valid["PBR_z"] +
-        weights["ROE_z"] * df_valid["ROE_z"] +
-        weights["DIV_z"] * df_valid["DIV_z"]
-    ).clip(-5, 5)
-    df["score"] = np.nan
-    df.loc[valid_mask, "score"] = df_valid["score"]
+def finalize_scores(df, style="aggressive"):
+    for col in DEFAULT_FIN:
+        df[col] = df[col].apply(safe_float)
+    for col in DEFAULT_FIN:
+        df[f'z_{col}'] = safe_zscore(df[col])
+    if style == "aggressive":
+        score = -df['z_PER']*0.25 - df['z_PBR']*0.25 + df['z_ROE']*0.35 + df['z_배당수익률']*0.15
+    elif style == "stable":
+        score = -df['z_PER']*0.3 - df['z_PBR']*0.4 + df['z_ROE']*0.2 + df['z_배당수익률']*0.1
+    elif style == "dividend":
+        score = df['z_배당수익률']*0.7 - df['z_PBR']*0.2 - df['z_PER']*0.1
+    else:
+        score = np.zeros(len(df))
+    score = np.where(np.isnan(score), 0, score)
+    df['score'] = score
     return df
