@@ -12,20 +12,19 @@ from update_stock_database import main as update_main
 st.set_page_config(page_title="투자 매니저", layout="wide")
 LOGO_PATH = "logo_tynex.png"
 
-with st.container():
-    col1, col2 = st.columns([0.19, 0.81])
-    with col1:
-        st.image(LOGO_PATH, width=130)
-    with col2:
-        st.markdown("""
-        <div style="margin-top:22px;display:flex;align-items:center;">
-            <span style="font-size:2.0rem;font-weight:800;letter-spacing:0.02em;">투자 매니저</span>
-            <span style="flex:1;height:2px;background:linear-gradient(to right,#f2f2f2,#eaeaea,#fff);margin-left:16px;"></span>
-        </div>
-        """, unsafe_allow_html=True)
-st.markdown('<hr style="margin:0 0 18px 0;">', unsafe_allow_html=True)
+col1, col2 = st.columns([0.18, 0.82])
+with col1:
+    st.image(LOGO_PATH, width=120)
+with col2:
+    st.markdown("""
+    <div style="margin-top:26px;display:flex;align-items:center;">
+        <span style="font-size:2.08rem;font-weight:800;letter-spacing:0.02em;">투자 매니저</span>
+        <span style="flex:1;height:2px;background:linear-gradient(to right,#a7a7a7,#e7e7e7,#fff);margin-left:16px;"></span>
+    </div>
+    """, unsafe_allow_html=True)
+st.markdown('<hr style="margin:0 0 14px 0;">', unsafe_allow_html=True)
 st.markdown("""
-<div style="padding:7px 0 6px 0; font-size:1.08rem; color:#485; border-bottom: 1.5px solid #e3e3e3;">
+<div style="padding:8px 0 7px 0; font-size:1.1rem; color:#259a51; border-bottom: 1.5px solid #e3e3e3;">
 <b>스코어 산정 안내:</b>
 PER·PBR·ROE·배당률을 z-score로 표준화, 투자 성향별 가중치로 종합.<br>
 공격적=기술지표·수익률↑, 안정적=저PBR·저PER·ROE↑, 배당형=배당↑.  
@@ -84,15 +83,15 @@ df_disp = df[df["score"].notnull()].sort_values("score", ascending=False)
 top10 = df_disp.head(10)
 
 st.markdown("## 🏆 투자 성향별 추천 TOP 10")
-st.markdown('<div style="display:flex;flex-wrap:wrap;gap:18px;">', unsafe_allow_html=True)
+st.markdown('<div style="display:flex;flex-wrap:wrap;gap:17px;">', unsafe_allow_html=True)
 for _, row in top10.iterrows():
     st.markdown(f"""
-    <div style="flex:1 1 260px; background:#fff; border-radius:13px; border:1px solid #e6e6e6;
-                box-shadow:0 1.5px 9px #0001; margin-bottom:0.6em; padding:1.2em 1em;">
-        <div style="font-size:1.1em;font-weight:700;color:#365;">
+    <div style="flex:1 1 250px; background:#fff; border-radius:13px; border:1px solid #e6e6e6;
+                box-shadow:0 2px 8px #0002; margin-bottom:0.6em; padding:1.15em 1em;">
+        <div style="font-size:1.07em;font-weight:700;color:#333;">
             <a href="#종목_{row['종목코드']}" style="color:inherit;text-decoration:none;">{row['종목명']}</a>
         </div>
-        <div style="margin:2px 0 7px 0;color:#777;">{row['종목코드']} | {row['시장구분']}</div>
+        <div style="margin:2px 0 7px 0;color:#888;">{row['종목코드']} | {row['시장구분']}</div>
         <div style="font-size:1.23em;color:#19b763;font-weight:700;">점수 {row['score']:.2f}</div>
     </div>
     """, unsafe_allow_html=True)
