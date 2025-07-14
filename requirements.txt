@@ -7,4 +7,3 @@ beautifulsoup4
 requests
 scipy
 lxml
-financedatareader
