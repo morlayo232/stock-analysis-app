@@ -1,27 +1,12 @@
-import pandas as pd
-import yfinance as yf
-from modules.fetch_naver import get_naver_price
-from modules.fetch_daum import get_daum_price
+from pykrx import stock
+from datetime import datetime
 
-def fetch_stock_price(code):
+def fetch_price(code):
+    today = datetime.today().strftime("%Y%m%d")
     try:
-        df = yf.download(f"{code}.KS", period="6mo", progress=False)
+        df = stock.get_market_ohlcv_by_date(today, today, code)
         if not df.empty:
-            df = df.reset_index()
-            df = df.rename(columns={"Date": "Date", "Close": "Close", "Open": "Open", "High": "High", "Low": "Low", "Volume": "Volume"})
-            return df[["Date", "Close", "Open", "High", "Low", "Volume"]]
+            return int(df['종가'][-1])
     except Exception:
         pass
-    try:
-        df = get_naver_price(code)
-        if not df.empty:
-            return df
-    except Exception:
-        pass
-    try:
-        df = get_daum_price(code)
-        if not df.empty:
-            return df
-    except Exception:
-        pass
-    return pd.DataFrame()
+    return None
