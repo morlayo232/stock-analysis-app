@@ -9,29 +9,27 @@ from modules.fetch_news import fetch_news_headlines
 from update_stock_database import main as update_main
 
 st.set_page_config(page_title="투자 매니저", layout="wide")
-LOGO_PATH = "logo_tynex.png"
 
-# ----------------- 로고+이름+구분선 -----------------
+# --- 상단: 제목+구분선 ---
 st.markdown(
     """
-    <div style="display:flex;align-items:center;margin-top:18px;">
-        <img src="https://jurinee.streamlit.app/logo_tynex.png" style="height:62px;margin-right:20px;border-radius:8px;background:#eee;" alt="로고">
-        <span style="font-size:2.1rem;font-weight:800;color:#f9f9f9;letter-spacing:0.04em;">투자 매니저</span>
+    <div style="margin-top:20px;">
+        <span style="font-size:2.08rem;font-weight:800;letter-spacing:0.03em;">투자 매니저</span>
     </div>
-    <hr style="border:0;height:2.7px;background:linear-gradient(90deg,#333,#eee,#333);margin-top:14px;margin-bottom:15px;">
+    <hr style="border:0;height:2.5px;background:linear-gradient(90deg,#333,#eee,#333);margin-top:14px;margin-bottom:16px;">
     """,
     unsafe_allow_html=True
 )
 st.markdown("""
-<div style="padding:8px 0 7px 0; font-size:1.1rem; color:#25ca65; border-bottom: 1.5px solid #e3e3e3;">
+<div style="padding:9px 0 7px 0; font-size:1.09rem; color:#259a51; border-bottom: 1.5px solid #e3e3e3;">
 <b>스코어 산정 안내:</b>
 PER·PBR·ROE·배당률을 z-score로 표준화, 투자 성향별 가중치로 종합.<br>
-공격적=기술지표·수익률↑, 안정적=저PBR·저PER·ROE↑, 배당형=배당↑.<br>
+공격적=기술지표·수익률↑, 안정적=저PBR·저PER·ROE↑, 배당형=배당↑.  
 상위 10개는 "투자 성향별 추천 TOP10"에 즉시 반영.
 </div>
 """, unsafe_allow_html=True)
 
-# ----------------- sidebar -----------------
+# --- sidebar ---
 st.sidebar.header("투자 성향 선택")
 style = st.sidebar.radio("성향", ["공격적", "안정적", "배당형"])
 st.sidebar.subheader("종목명 검색")
@@ -49,10 +47,12 @@ selected_row = None
 opt_list = []
 if not search_result.empty:
     opt_list = search_result["종목명"] + " (" + search_result["종목코드"] + ")"
-if opt_list:
+if opt_list and len(opt_list) > 0:
     selected_row = st.sidebar.selectbox("검색된 종목", opt_list, key="searchbox")
 elif not df.empty:
     selected_row = f'{df.iloc[0]["종목명"]} ({df.iloc[0]["종목코드"]})'
+else:
+    selected_row = None
 
 st.sidebar.markdown("---")
 st.sidebar.markdown("## ⭐ 즐겨찾기")
@@ -74,7 +74,7 @@ if st.sidebar.button("Update Now"):
     st.sidebar.success("업데이트 완료!")
 st.sidebar.markdown(f"마지막 업데이트: {pd.Timestamp.now():%Y-%m-%d %H:%M:%S}")
 
-# ----------------- 추천 TOP10 카드 -----------------
+# --- style별 점수 적용, 추천 TOP10 카드 ---
 df = finalize_scores(df, style=style)
 df["score"] = pd.to_numeric(df["score"], errors="coerce")
 df_disp = df[df["score"].notnull()].sort_values("score", ascending=False)
@@ -95,7 +95,7 @@ for _, row in top10.iterrows():
     """, unsafe_allow_html=True)
 st.markdown('</div>', unsafe_allow_html=True)
 
-# ----------------- 종목 상세 -----------------
+# --- 종목 상세 ---
 if selected_row:
     code = selected_row.split("(")[-1].replace(")", "")
     stock = df[df["종목코드"] == code].iloc[0]
@@ -127,14 +127,11 @@ if selected_row:
     except Exception as e:
         st.error(f"차트 로딩 오류: {e}")
 
-    # ----------- 추천가 오류 (Series bool) 대처 -----------
     try:
-        # EMA_Cross 컬럼이 있는지 체크
         ema_cross_buy = df_price[df_price["EMA_Cross"] == "golden"] if "EMA_Cross" in df_price.columns else pd.DataFrame()
         ema_cross_sell = df_price[df_price["EMA_Cross"] == "dead"] if "EMA_Cross" in df_price.columns else pd.DataFrame()
         latest_buy = float(ema_cross_buy["Close"].iloc[-1]) if not ema_cross_buy.empty else None
         latest_sell = float(ema_cross_sell["Close"].iloc[-1]) if not ema_cross_sell.empty else None
-
         st.markdown("### 💲 추천 매수/매도 가격")
         st.info(f"최근 골든크로스 매수: {latest_buy:.2f}원" if latest_buy is not None else "골든크로스 신호 없음")
         st.info(f"최근 데드크로스 매도: {latest_sell:.2f}원" if latest_sell is not None else "데드크로스 신호 없음")
