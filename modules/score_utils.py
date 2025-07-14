@@ -1,4 +1,5 @@
 import numpy as np
+import pandas as pd   # ← 반드시 추가!
 from scipy.stats import zscore
 
 DEFAULT_FIN = {
