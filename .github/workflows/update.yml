@@ -1,39 +1,7 @@
-name: Daily Update
+name: Daily Stock Update
 
-on:
-  schedule:
-    - cron: '0 23 * * *' # 매일 오전 8시(KST 기준, UTC+9)
-  workflow_dispatch:
+on: schedule: - cron: '0 23 * * *' # 매일 오전 8시 (KST) workflow_dispatch:
 
-jobs:
-  update:
-    runs-on: ubuntu-latest
+jobs: run-update: runs-on: ubuntu-latest steps: - uses: actions/checkout@v3
 
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v3
-
-      - name: Set up Python
-        uses: actions/setup-python@v4
-        with:
-          python-version: '3.10'
-
-      - name: Upgrade pip
-        run: |
-          python -m pip install --upgrade pip
-
-      - name: Install dependencies
-        run: |
-          pip install --no-cache-dir -r requirements.txt
-
-      - name: Run update script
-        run: |
-          python update_stock_database.py
-
-      - name: Commit and push changes
-        run: |
-          git config --global user.name "github-actions"
-          git config --global user.email "github-actions@github.com"
-          git add filtered_stocks.csv missed_financials.csv || true
-          git commit -m "Auto-update filtered_stocks.csv missed_financials.csv ($(date +'%Y-%m-%d'))" || true
-          git push || true
+- name: Set up Python uses: actions/setup-python@v4 with: python-version: '3.10' - name: Install dependencies run: | pip install -r requirements.txt - name: Run stock DB update run: | python update_stock_database.py - name: Commit and push run: | git config --global user.name 'github-actions' git config --global user.email 'actions@github.com' git add filtered_stocks.csv git commit -m "Daily update" git push 
