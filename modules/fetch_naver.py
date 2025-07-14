@@ -6,7 +6,7 @@ def get_naver_price(code):
     url = f"https://finance.naver.com/item/sise_day.nhn?code={code}"
     headers = {"User-Agent": "Mozilla/5.0"}
     dfs = []
-    for page in range(1, 5):  # 4페이지(약 80일)
+    for page in range(1, 5):
         page_url = url + f"&page={page}"
         res = requests.get(page_url, headers=headers)
         soup = BeautifulSoup(res.text, "html.parser")
@@ -34,7 +34,6 @@ def get_naver_financials(code):
         resp = requests.get(url, headers=headers, timeout=5)
         soup = BeautifulSoup(resp.text, "html.parser")
         per, pbr, roe, dividend = None, None, None, None
-
         for th in soup.find_all("th"):
             txt = th.get_text(strip=True)
             td = th.find_next_sibling("td")
@@ -48,8 +47,6 @@ def get_naver_financials(code):
                 roe = value if value not in ["", "-", "N/A"] else roe
             elif "배당" in txt:
                 dividend = value if value not in ["", "-", "N/A"] else dividend
-
-        # 추가 보강: 모든 <td>에서 키워드 직접 검색
         if not all([per, pbr, roe, dividend]):
             for td in soup.find_all("td"):
                 txt = td.get_text(strip=True)
