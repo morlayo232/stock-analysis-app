@@ -2,24 +2,23 @@ import requests
 from bs4 import BeautifulSoup
 
 def get_daum_financials(code):
-    # 1. API JSON 시도 (키가 다양한 케이스까지)
+    # 1. API JSON 시도 (키 다양화)
     try:
         url = f"https://finance.daum.net/api/financials/{code}?periodType=annual"
         headers = {"User-Agent": "Mozilla/5.0", "referer": f"https://finance.daum.net/quotes/{code}"}
         res = requests.get(url, headers=headers)
         data = res.json()
-        # JSON에서 다양한 가능성에 대비해 반복 탐색
         per = data.get("per") or data.get("PER")
         pbr = data.get("pbr") or data.get("PBR")
         roe = data.get("roe") or data.get("ROE")
         dividend = data.get("dividend") or data.get("DividendYield") or data.get("dividendYield")
-        # 값이 있으면 반환
-        if all([per, pbr, roe, dividend]):
+        if any([per, pbr, roe, dividend]):
             print(f"[DAUM FIN API] {code}: PER={per}, PBR={pbr}, ROE={roe}, 배당률={dividend}")
             return per, pbr, roe, dividend
     except Exception as e:
         print(f"[DAUM FIN API 실패] {code}: {e}")
-    # 2. HTML 백업 파싱(텍스트 기반, 네이버와 비슷)
+
+    # 2. HTML 백업 파싱
     try:
         url = f"https://finance.daum.net/quotes/{code}"
         headers = {"User-Agent": "Mozilla/5.0"}
