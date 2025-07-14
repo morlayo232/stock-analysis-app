@@ -1,67 +1,40 @@
-import streamlit as st
-import pandas as pd
-from modules.score_utils import finalize_scores
-from modules.fetch_news import fetch_google_news
-from pykrx import stock
-from datetime import datetime
+import streamlit as st import pandas as pd import os from modules.score_utils import finalize_scores, assess_reliability from modules.fetch_news import fetch_google_news from modules.chart_utils import plot_price_rsi_macd from modules.calculate_indicators import add_tech_indicators from datetime import datetime from pykrx import stock
 
-# 1. 전체 종목리스트 불러오기 (예: initial_krx_list.csv)
-df_list = pd.read_csv("initial_krx_list.csv")  # 컬럼: 종목코드, 종목명, 시장구분 등
-codes = dict(zip(df_list['종목명'], df_list['종목코드']))
+st.set_page_config(page_title="투자 매니저", layout="wide") st.title("\ud22c\uc790 \ub9e4\ub2c8\uc800")
 
-# 2. 개별 종목별 재무/주가/뉴스 일괄 수집
-def fetch_price(code):
-    today = datetime.today().strftime("%Y%m%d")
-    try:
-        df = stock.get_market_ohlcv_by_date(today, today, code)
-        if not df.empty:
-            return int(df['종가'][-1])
-    except Exception:
-        pass
-    return None
+자동/수동 데이터 로딩 
 
-def fetch_fundamental(code):
-    today = datetime.today().strftime("%Y%m%d")
-    try:
-        df = stock.get_market_fundamental_by_date(today, today, code)
-        if not df.empty:
-            return {
-                'PER': float(df['PER'][-1]),
-                'PBR': float(df['PBR'][-1]),
-                'ROE': float('nan'),  # 필요시 fetch_naver 등에서 보조 추출
-                '배당수익률': float(df['DIV'][-1])
-            }
-    except Exception:
-        pass
-    return {'PER': None, 'PBR': None, 'ROE': None, '배당수익률': None}
+@st.cache_data
 
-st.set_page_config(page_title="투자 매니저", layout="wide")
-st.title("투자 매니저")
+def load_filtered_data(): try: return pd.read_csv("filtered_stocks.csv") except: from update_stock_database import update_database try: update_database() return pd.read_csv("filtered_stocks.csv") except: return pd.DataFrame()
 
-style = st.sidebar.radio("투자 성향", ["aggressive", "stable", "dividend"], horizontal=True)
+style = st.sidebar.radio("\ud22c\uc790 \uc131\ud5a5", ["aggressive", "stable", "dividend"], horizontal=True)
 
-data = []
-# 전체 종목 반복 (많으니 속도/트래픽 고려해 1회만 실행 또는 DB 저장 추천)
-for name, code in codes.items():
-    price = fetch_price(code)
-    fin = fetch_fundamental(code)
-    data.append({
-        "종목명": name, "종목코드": code, "현재가": price,
-        "PER": fin["PER"], "PBR": fin["PBR"], "ROE": fin["ROE"], "배당수익률": fin["배당수익률"]
-    })
+데이터 로딩 
 
-df = pd.DataFrame(data)
-df = finalize_scores(df, style=style)
+raw_df = load_filtered_data() if raw_df.empty: st.error("\ub370이\ud130\ub97c \ub85c\ub4dc\ud560 \uc218 \uc5c6\uc2b5\ub2c8\ub2e4.") st.stop()
 
-st.subheader("투자 성향별 TOP 10")
-st.dataframe(df.sort_values("score", ascending=False).head(10)[["종목명", "종목코드", "현재가", "PER", "PBR", "ROE", "배당수익률", "score"]])
+점수 계산 + 실력도 포함화 
 
-st.subheader("종목별 최신 뉴스 (구글 뉴스)")
-for _, row in df.sort_values("score", ascending=False).head(10).iterrows():
-    st.markdown(f"**{row['종목명']} ({row['종목코드']})**")
-    news_list = fetch_google_news(row['종목명'])
-    if news_list:
-        for n in news_list:
-            st.markdown(f"- {n}")
-    else:
-        st.write("뉴스 없음")
+scored_df = finalize_scores(raw_df, style=style) scored_df["신뢰등급"] = scored_df.apply(assess_reliability, axis=1)
+
+통합 목록 
+
+st.subheader(f"\ud22c\uc790 \uc131\ud5a5({style}) \ud1b5합 \uc810수 TOP 10") top10 = scored_df.sort_values("score", ascending=False).head(10) st.dataframe(top10[["종목명", "종목코드", "현재가", "PER", "PBR", "ROE", "배당수익률", "score", "신뢰등급"]])
+
+조회 필드 
+
+selected = st.selectbox("\uc870명 \uc120\ud0dd", top10["종목명"].tolist()) code = top10[top10["종목명"] == selected]["종목코드"].values[0]
+
+가격 환기 경로 + 지표 
+
+start = "20240101" end = datetime.today().strftime("%Y%m%d") df_price = stock.get_market_ohlcv_by_date(start, end, code) if df_price.empty: st.warning("\uac00\uaca9 \ub370\uc774\ud130 \ucd94\uc801 \uc2e4\ud328") else: df_price = add_tech_indicators(df_price) st.plotly_chart(plot_price_rsi_macd(df_price), use_container_width=True)
+
+최신 뉴스 
+
+st.subheader("\ucd5c신 \ub274스") news = fetch_google_news(selected) if news: for n in news: st.markdown(f"- {n}") else: st.info("\ub274\uc2a4 \uc815\ubcf4 \uc5c6\uc74c")
+
+수동 갱신 버튼 
+
+if st.button("\ub370\uc774\ud130 \uc218동 \uac31신"): from update_stock_database import update_database update_database() st.success("\uac31신 \uc644\ub8cc! \ub2e4시 \uace8\ub4dc\ub9ac \ud574\uc8fc세요")
+
