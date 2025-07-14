@@ -33,3 +33,18 @@ def get_daum_price(code):
     df = df.sort_values("Date").reset_index(drop=True)
     df = df.dropna()
     return df
+
+def get_daum_financials(code):
+    try:
+        url = f"https://finance.daum.net/api/financials/{code}?periodType=annual"
+        headers = {"User-Agent": "Mozilla/5.0", "referer": f"https://finance.daum.net/quotes/{code}"}
+        res = requests.get(url, headers=headers)
+        data = res.json()
+        per = data.get("per", None)
+        pbr = data.get("pbr", None)
+        roe = data.get("roe", None)
+        dividend = data.get("dividend", None)
+        return per, pbr, roe, dividend
+    except Exception as e:
+        print(f"[DAUM FIN 실패] {code}: {e}")
+        return None, None, None, None
