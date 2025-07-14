@@ -2,6 +2,22 @@ import numpy as np
 import pandas as pd
 from scipy.stats import zscore
 
+def safe_float(val, default):
+    try:
+        sval = str(val).replace(',', '').replace('%', '').replace('N/A', '').replace('-', '').replace('\n', '').replace('l', '').strip().upper()
+        if sval in ['', 'NONE', 'NAN']:
+            return default
+        return float(sval)
+    except Exception:
+        return default
+
+DEFAULT_FIN = {
+    "PER": 10.0,
+    "PBR": 1.0,
+    "ROE": 8.0,
+    "배당률": 2.0
+}
+
 def finalize_scores(df, style="안정형"):
     fin_cols = ["PER", "PBR", "ROE", "배당률"]
     for col in fin_cols:
