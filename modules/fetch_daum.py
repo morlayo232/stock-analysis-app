@@ -35,7 +35,6 @@ def get_daum_price(code):
 
 def get_daum_financials(code):
     try:
-        # 다음 금융 HTML 파싱 기반 (API는 실시간 변경될 수 있어 HTML이 안전)
         url = f"https://finance.daum.net/quotes/A{code}"
         headers = {"User-Agent": "Mozilla/5.0", "referer": url}
         res = requests.get(url, headers=headers)
