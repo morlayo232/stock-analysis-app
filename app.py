@@ -1,13 +1,9 @@
 import streamlit as st
 import pandas as pd
-import numpy as np
 import os
+import numpy as np
 import sys
-
-# modules 폴더를 경로에 추가
 sys.path.append(os.path.abspath("modules"))
-
-# 모듈 import (prefix 없이)
 from score_utils import finalize_scores, assess_reliability
 from fetch_news import fetch_google_news
 from chart_utils import plot_price_rsi_macd
@@ -22,7 +18,7 @@ st.title("투자 매니저")
 def load_filtered_data():
     try:
         df = pd.read_csv("filtered_stocks.csv")
-        expected = ["종목명", "종목코드", "현재가", "PER", "PBR", "ROE", "배당률"]
+        expected = ["종목명", "종목코드", "현재가", "PER", "PBR", "EPS", "BPS", "배당률"]
         for col in expected:
             if col not in df.columns:
                 df[col] = np.nan
@@ -56,7 +52,7 @@ scored_df["신뢰등급"] = scored_df.apply(assess_reliability, axis=1)
 st.subheader(f"투자 성향({style}) 통합 점수 TOP 10")
 top10 = scored_df.sort_values("score", ascending=False).head(10)
 st.dataframe(top10[[
-    "종목명", "종목코드", "현재가", "PER", "PBR", "ROE", "배당률", "score", "신뢰등급"
+    "종목명", "종목코드", "현재가", "PER", "PBR", "EPS", "BPS", "배당률", "score", "신뢰등급"
 ]])
 
 selected = st.selectbox("종목 선택", top10["종목명"].tolist())
