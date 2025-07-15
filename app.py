@@ -99,7 +99,19 @@ if df_price is None or df_price.empty:
     st.warning("가격 데이터 추적 실패")
 else:
     df_price = add_tech_indicators(df_price)
-    st.plotly_chart(plot_price_rsi_macd(df_price), use_container_width=True)
+    # 3분할 차트(종가+EMA, RSI, MACD) 표시
+    fig, fig_rsi, fig_macd = plot_price_rsi_macd(df_price)
+    st.plotly_chart(fig, use_container_width=True)
+    st.plotly_chart(fig_rsi, use_container_width=True)
+    st.plotly_chart(fig_macd, use_container_width=True)
+
+    # 지표 해설/초보 투자TIP 안내
+    st.info(
+        "- **종가/EMA(20):** 단기 추세·매매 타이밍 참고. EMA 하락돌파 후 반등, 상승돌파 후 조정 체크!\n"
+        "- **골든크로스:** 상승전환 시그널, **데드크로스:** 하락전환 시그널(실전에서는 한 박자 뒤 조치 권고)\n"
+        "- **RSI:** 30 아래 과매도, 70 위 과매수(과매도=반등, 과매수=조정, 단 급등/급락 장세는 예외)\n"
+        "- **MACD:** MACD가 Signal을 상향돌파(매수), 하향돌파(매도), 0선 부근 전환은 추세 반전 가능성"
+    )
 
     st.subheader("📌 추천 매수가 / 매도가")
     required_cols = ["RSI", "MACD", "Signal", "EMA20"]
