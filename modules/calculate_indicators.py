@@ -21,10 +21,10 @@ def calc_macd(df, col='종가'):
     return macd, signal, hist
 
 def add_tech_indicators(df):
-    df['EMA_20'] = calc_ema(df, 20)
-    df['RSI_14'] = calc_rsi(df, 14)
+    df['EMA20'] = calc_ema(df, 20)
+    df['RSI'] = calc_rsi(df, 14)
     macd, signal, hist = calc_macd(df)
     df['MACD'] = macd
-    df['MACD_SIGNAL'] = signal
-    df['MACD_HIST'] = hist
+    df['Signal'] = signal
+    df['MACD_Hist'] = hist
     return df
