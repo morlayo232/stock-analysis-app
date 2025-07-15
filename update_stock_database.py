@@ -23,23 +23,32 @@ def fetch_fundamental(code):
             return {
                 'PER': float(df['PER'][-1]),
                 'PBR': float(df['PBR'][-1]),
-                'ROE': float('nan'),  # pykrx엔 없음 (보조로 추출)
-                '배당수익률': float(df['DIV'][-1])
+                'EPS': float(df['EPS'][-1]),
+                'BPS': float(df['BPS'][-1]),
+                '배당률': float(df['DIV'][-1])
             }
     except Exception:
         pass
-    return {'PER': None, 'PBR': None, 'ROE': None, '배당수익률': None}
+    return {'PER': None, 'PBR': None, 'EPS': None, 'BPS': None, '배당률': None}
 
 def update_database():
+    # KRX 종목 리스트 읽기 (시장구분, 종목명, 종목코드 등)
     df_list = pd.read_csv("initial_krx_list.csv")
-    codes = dict(zip(df_list['종목명'], df_list['종목코드']))
     data = []
-    for name, code in codes.items():
+    for _, row in df_list.iterrows():
+        name = row['종목명']
+        code = str(row['종목코드']).zfill(6)
         price = fetch_price(code)
         fin = fetch_fundamental(code)
         data.append({
-            "종목명": name, "종목코드": code, "현재가": price,
-            "PER": fin["PER"], "PBR": fin["PBR"], "ROE": fin["ROE"], "배당수익률": fin["배당수익률"]
+            "종목명": name,
+            "종목코드": code,
+            "현재가": price,
+            "PER": fin["PER"],
+            "PBR": fin["PBR"],
+            "EPS": fin["EPS"],
+            "BPS": fin["BPS"],
+            "배당률": fin["배당률"]
         })
     df = pd.DataFrame(data)
     df = finalize_scores(df, style="aggressive")
@@ -78,7 +87,7 @@ def update_single_stock(code):
                 if col in fund.columns:
                     val = fund[col].iloc[-1]
                     if col == "DIV":
-                        df.at[idx, '배당수익률'] = val
+                        df.at[idx, '배당률'] = val
                     else:
                         df.at[idx, col] = val
         for col in ['RSI', 'MACD', 'Signal', 'EMA20']:
