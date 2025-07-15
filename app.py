@@ -76,7 +76,6 @@ selected = None
 code = None
 
 with st.sidebar:
-with st.sidebar:
     st.markdown("#### ⭐ 즐겨찾기")
     fav_dropdown = st.selectbox("즐겨찾기 선택", fav_list, key="fav_dropdown") if fav_list else None
     all_candidates = scored_df["종목명"].tolist()
