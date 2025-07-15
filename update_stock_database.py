@@ -1,7 +1,10 @@
 import pandas as pd
 from pykrx import stock
 from datetime import datetime
-from modules.score_utils import finalize_scores
+import sys
+import os
+sys.path.append(os.path.join(os.path.dirname(__file__), "modules"))
+from score_utils import finalize_scores
 
 def fetch_price(code):
     today = datetime.today().strftime("%Y%m%d")
@@ -24,12 +27,18 @@ def fetch_fundamental(code):
                 '배당률': float(df['DIV'][-1])
             }
     except:
-        return {'PER': None, 'PBR': None, 'ROE': None, '배당률': None}
+        return {
+            'PER': None,
+            'PBR': None,
+            'ROE': None,
+            '배당률': None
+        }
 
 def update_database():
     df_list = pd.read_csv("initial_krx_list.csv")
     codes = dict(zip(df_list['종목명'], df_list['종목코드']))
     data = []
+
     for name, code in codes.items():
         price = fetch_price(code)
         fin = fetch_fundamental(code)
