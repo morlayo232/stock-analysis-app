@@ -24,6 +24,7 @@ def update_database():
 import streamlit as st
 
 def update_single_stock(code):
+    import streamlit as st
     st.write("===== [갱신 시작] =====")
     st.write("입력 code:", code)
     df = pd.read_csv("filtered_stocks.csv", dtype={'종목코드': str})
@@ -37,7 +38,9 @@ def update_single_stock(code):
         raise Exception(f"종목코드({code}) 없음")
     try:
         price_df = fetch_price(code)
-        st.write("price_df:", price_df.head())
+        st.write("price_df shape:", price_df.shape if price_df is not None else None)
+        st.write("price_df 컬럼:", list(price_df.columns) if price_df is not None else None)
+        st.write("price_df 샘플:", price_df.head() if price_df is not None else None)
         if price_df is None or price_df.empty:
             st.error(f"[개별 갱신][{code}] fetch_price 결과 없음/빈 데이터")
             raise Exception(f"fetch_price({code}) 결과 없음/빈 데이터")
