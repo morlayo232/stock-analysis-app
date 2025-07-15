@@ -59,10 +59,17 @@ scored_df = finalize_scores(raw_df, style=style)
 scored_df["신뢰등급"] = scored_df.apply(assess_reliability, axis=1)
 
 st.subheader(f"투자 성향({style}) 통합 점수 TOP 10")
-top10 = scored_df.sort_values("score", ascending=False).head(10)
-st.dataframe(top10[
-    ["종목명", "종목코드", "현재가", "PER", "PBR", "EPS", "BPS", "배당률", "score", "신뢰등급"]
-])
+
+top10 = scored_df.sort_values("score", ascending=False).head(10).copy()
+top10["네이버링크"] = top10.apply(
+    lambda row: f'<a href="https://finance.naver.com/item/main.naver?code={row["종목코드"]:0>6}" target="_blank">{row["종목명"]}</a>',
+    axis=1
+)
+
+show_cols = [
+    "네이버링크", "종목코드", "현재가", "PER", "PBR", "EPS", "BPS", "배당률", "score", "신뢰등급"
+]
+st.write(top10[show_cols].to_html(escape=False, index=False), unsafe_allow_html=True)
 
 st.subheader("종목 검색")
 keyword = st.text_input("종목명을 입력하세요")
