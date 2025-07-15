@@ -21,7 +21,6 @@ def update_database():
             print(f"[전체 갱신][{code}] 오류: {e}")
     df.to_csv("filtered_stocks.csv", index=False)
 
-import streamlit as st
 
 def update_single_stock(code):
     import streamlit as st
@@ -36,20 +35,22 @@ def update_single_stock(code):
     if len(row_idx) == 0:
         st.error(f"[개별 갱신][{code}] filtered_stocks.csv에 해당 종목코드 없음")
         raise Exception(f"종목코드({code}) 없음")
-    idx = int(row_idx[0])
+    idx = int(row_idx[0])  # 반드시 int로 변환!
     try:
         price_df = fetch_price(code)
-        st.write("price_df shape:", price_df.shape if price_df is not None else None)
-        st.write("price_df 컬럼:", list(price_df.columns) if price_df is not None else None)
-        st.write("price_df 샘플:", price_df.head() if price_df is not None else None)
-        if price_df is None or price_df.empty:
+        st.write("price_df 타입:", type(price_df))
+        st.write("price_df shape:", price_df.shape if hasattr(price_df, "shape") else None)
+        st.write("price_df 컬럼:", list(price_df.columns) if hasattr(price_df, "columns") else None)
+        st.write("price_df 샘플:", price_df.head() if hasattr(price_df, "head") else None)
+        if price_df is None or getattr(price_df, "empty", True):
             st.error(f"[개별 갱신][{code}] fetch_price 결과 없음/빈 데이터")
             raise Exception(f"fetch_price({code}) 결과 없음/빈 데이터")
         price_df = add_tech_indicators(price_df)
         for col in ['현재가', 'PER', 'PBR', 'EPS', 'BPS', '배당률']:
-            st.write(f"컬럼 {col} 값:", price_df[col].iloc[-1] if col in price_df.columns else "없음")
+            val = price_df[col].iloc[-1] if col in price_df.columns else "없음"
+            st.write(f"컬럼 {col} 값:", val)
             if col in price_df.columns:
-                df.at[idx, col] = price_df[col].iloc[-1]
+                df.at[idx, col] = val
         df.to_csv("filtered_stocks.csv", index=False)
         st.success(f"[개별 갱신][{code}] 성공적으로 반영됨.")
         return True
