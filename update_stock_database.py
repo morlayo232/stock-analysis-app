@@ -23,22 +23,17 @@ def fetch_fundamental(code):
             return {
                 'PER': float(df['PER'][-1]),
                 'PBR': float(df['PBR'][-1]),
-                'ROE': float('nan'),
+                'EPS': float(df['EPS'][-1]),
+                'BPS': float(df['BPS'][-1]),
                 '배당률': float(df['DIV'][-1])
             }
     except:
-        return {
-            'PER': None,
-            'PBR': None,
-            'ROE': None,
-            '배당률': None
-        }
+        return {'PER': None, 'PBR': None, 'EPS': None, 'BPS': None, '배당률': None}
 
 def update_database():
     df_list = pd.read_csv("initial_krx_list.csv")
     codes = dict(zip(df_list['종목명'], df_list['종목코드']))
     data = []
-
     for name, code in codes.items():
         price = fetch_price(code)
         fin = fetch_fundamental(code)
@@ -48,7 +43,8 @@ def update_database():
             "현재가": price,
             "PER": fin['PER'],
             "PBR": fin['PBR'],
-            "ROE": fin['ROE'],
+            "EPS": fin['EPS'],
+            "BPS": fin['BPS'],
             "배당률": fin['배당률']
         })
 
