@@ -19,7 +19,6 @@ from pykrx import stock
 st.set_page_config(page_title="투자 매니저", layout="wide")
 st.title("투자 매니저")
 
-# 파일명
 FAV_FILE = "favorites.json"
 
 def load_favorites():
@@ -78,11 +77,7 @@ code = None
 
 with st.sidebar:
     st.markdown("#### ⭐ 즐겨찾기")
-    # 드롭다운: 즐겨찾기한 종목만 보임
-    fav_dropdown = None
-    if fav_list:
-        fav_dropdown = st.selectbox("즐겨찾기 선택", fav_list, key="fav_dropdown", index=0)
-    # 종목 검색도 사이드바에 같이(추가)
+    fav_dropdown = st.selectbox("즐겨찾기 선택", fav_list, key="fav_dropdown") if fav_list else None
     all_candidates = scored_df["종목명"].tolist()
     search_val = st.text_input("종목명 직접 검색", "")
     if search_val:
@@ -91,13 +86,12 @@ with st.sidebar:
     else:
         search_candidates = all_candidates
     search_selected = st.selectbox("전체 종목 선택", search_candidates, key="all_selectbox")
-    # 최종 선택 우선순위: 즐겨찾기 > 검색(선택) > TOP10
+    # 최종 선택 우선순위: 즐겨찾기 > 검색(선택)
     if fav_dropdown:
         selected = fav_dropdown
     else:
         selected = search_selected
     code = scored_df[scored_df["종목명"] == selected]["종목코드"].values[0]
-    # 즐겨찾기 등록/해제 버튼
     is_fav = selected in fav_list
     if st.button("⭐ 즐겨찾기 추가" if not is_fav else "★ 즐겨찾기 해제", key="fav_btn2"):
         if not is_fav:
@@ -105,7 +99,7 @@ with st.sidebar:
         else:
             fav_list = [x for x in fav_list if x != selected]
         save_favorites(fav_list)
-        st.experimental_rerun()
+        st.rerun()
 
 # ------------------ 본문(선택 종목) ------------------
 if not selected or not code:
@@ -139,7 +133,6 @@ try:
 except Exception:
     st.info("재무 데이터가 부족합니다.")
 
-# 가격/차트/지표
 start = "20240101"
 end = datetime.today().strftime("%Y%m%d")
 df_price = stock.get_market_ohlcv_by_date(start, end, code)
@@ -190,11 +183,9 @@ else:
                 rolling_std = recent['종가'].rolling(window=20).std().iloc[i] if i >= 19 else None
                 lower_band = ema_now - 2 * rolling_std if rolling_std is not None else None
                 upper_band = ema_now + 2 * rolling_std if rolling_std is not None else None
-                # 매수 조건
                 if ((rsi_now < 40) or (close_now < ema_now) or (macd_now > signal_now) or (lower_band is not None and close_now < lower_band)):
                     buy_price = close_now
                     buy_date = recent['날짜'].iloc[i]
-                # 매도 조건
                 if ((rsi_now > 60) or (close_now > ema_now) or (macd_now < signal_now) or (upper_band is not None and close_now > upper_band)):
                     sell_price = close_now
                     sell_date = recent['날짜'].iloc[i]
@@ -270,13 +261,13 @@ else:
 
 if st.button(f"🔄 {selected} 데이터만 즉시 갱신"):
     from update_stock_database import update_single_stock
-    try:
-        update_single_stock(code)
+    result = update_single_stock(code)
+    if result:
         st.success(f"{selected} 데이터만 갱신 완료!")
         st.cache_data.clear()
-        st.experimental_rerun()
-    except Exception:
-        st.error("개별 종목 갱신 실패")
+        st.rerun()
+    else:
+        st.error("개별 종목 갱신 실패(치명적 오류 발생)")
 
 if st.button("🗂️ 전체 종목 수동 갱신"):
     from update_stock_database import update_database
@@ -284,7 +275,7 @@ if st.button("🗂️ 전체 종목 수동 갱신"):
         update_database()
         st.success("전체 데이터 갱신 완료!")
         st.cache_data.clear()
-        st.experimental_rerun()
+        st.rerun()
     except Exception:
         st.error("전체 갱신 실패")
 
