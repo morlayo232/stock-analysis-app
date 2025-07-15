@@ -137,52 +137,50 @@ else:
     elif df_price[required_cols].tail(3).isna().any().any():
         st.info("기술적 지표의 최근 값에 결측치가 있어 추천가를 계산할 수 없습니다.")
     else:
-        try:
-            price_now = df_price['종가'].iloc[-1]
-            price_std = df_price['종가'].std()
-            ema_now = df_price['EMA20'].iloc[-1]
-            rsi_now = df_price['RSI'].iloc[-1]
-            rsi_prev = df_price['RSI'].iloc[-2]
-            macd_now = df_price['MACD'].iloc[-1]
-            macd_prev = df_price['MACD'].iloc[-2]
-            signal_now = df_price['Signal'].iloc[-1]
-            signal_prev = df_price['Signal'].iloc[-2]
-
-            buy_price = None
-            sell_price = None
-
+        # 추천가 산출 로직 완화: 최근 N일간이라도 조건 맞으면 추천
+        window = 5
+        recent = df_price.tail(window).reset_index()
+        buy_price = None
+        sell_price = None
+        buy_date = None
+        sell_date = None
+        for i in range(1, len(recent)):
+            # 매수 조건
             if (
-                (rsi_now < 35 and rsi_prev < rsi_now) or
-                (price_now < ema_now)
+                (recent['RSI'].iloc[i] < 35 and recent['RSI'].iloc[i-1] < recent['RSI'].iloc[i]) or
+                (recent['종가'].iloc[i] < recent['EMA20'].iloc[i])
             ) and (
-                macd_now > signal_now and macd_prev < signal_prev
+                recent['MACD'].iloc[i] > recent['Signal'].iloc[i] and recent['MACD'].iloc[i-1] < recent['Signal'].iloc[i-1]
             ):
-                buy_price = price_now - price_std * 0.5
-
+                buy_price = recent['종가'].iloc[i]
+                buy_date = recent['날짜'].iloc[i] if '날짜' in recent.columns else recent.index[i]
+            # 매도 조건
             if (
-                (rsi_now > 65 and rsi_prev > rsi_now) or
-                (price_now > ema_now)
+                (recent['RSI'].iloc[i] > 65 and recent['RSI'].iloc[i-1] > recent['RSI'].iloc[i]) or
+                (recent['종가'].iloc[i] > recent['EMA20'].iloc[i])
             ) and (
-                macd_now < signal_now and macd_prev > signal_prev
+                recent['MACD'].iloc[i] < recent['Signal'].iloc[i] and recent['MACD'].iloc[i-1] > recent['Signal'].iloc[i-1]
             ):
-                sell_price = price_now + price_std * 0.8
+                sell_price = recent['종가'].iloc[i]
+                sell_date = recent['날짜'].iloc[i] if '날짜' in recent.columns else recent.index[i]
 
-            col1, col2 = st.columns(2)
-
-            with col1:
-                if buy_price is not None:
-                    st.metric("추천 매수가", f"{buy_price:,.0f} 원")
-                else:
-                    st.metric("추천 매수가", "조건 미충족")
-
-            with col2:
-                if sell_price is not None:
-                    st.metric("추천 매도가", f"{sell_price:,.0f} 원")
-                else:
-                    st.metric("추천 매도가", "조건 미충족")
-
-        except Exception as e:
-            st.info(f"추천가 계산 중 오류: {e}")
+        col1, col2 = st.columns(2)
+        with col1:
+            if buy_price is not None:
+                msg = f"{buy_price:,.0f} 원"
+                if buy_date:
+                    msg += f"\n({buy_date} 신호)"
+                st.metric("추천 매수가", msg)
+            else:
+                st.metric("추천 매수가", "조건 미충족")
+        with col2:
+            if sell_price is not None:
+                msg = f"{sell_price:,.0f} 원"
+                if sell_date:
+                    msg += f"\n({sell_date} 신호)"
+                st.metric("추천 매도가", msg)
+            else:
+                st.metric("추천 매도가", "조건 미충족")
 
     st.subheader("📋 종목 평가 및 투자 전략 (전문가 의견)")
     try:
