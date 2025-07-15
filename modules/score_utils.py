@@ -17,6 +17,15 @@ def safe_zscore(arr):
         return np.zeros_like(arr)
     return (arr - mean) / std
 
+def assess_reliability(row):
+    count = sum(~np.isnan([row.get(c, np.nan) for c in DEFAULT_FIN]))
+    if count >= 4:
+        return 'A'
+    elif count == 3:
+        return 'B'
+    else:
+        return 'C'
+
 def finalize_scores(df, style="aggressive"):
     for col in DEFAULT_FIN:
         df[col] = df[col].apply(safe_float)
