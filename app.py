@@ -1,9 +1,13 @@
 import streamlit as st
 import pandas as pd
-import os
 import numpy as np
+import os
 import sys
-sys.path.append(os.path.join(os.path.dirname(__file__), "modules"))
+
+# modules 폴더를 경로에 추가
+sys.path.append(os.path.abspath("modules"))
+
+# 모듈 import (prefix 없이)
 from score_utils import finalize_scores, assess_reliability
 from fetch_news import fetch_google_news
 from chart_utils import plot_price_rsi_macd
