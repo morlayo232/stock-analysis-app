@@ -22,12 +22,15 @@ st.title("투자 매니저")
 def load_filtered_data():
     try:
         df = pd.read_csv("filtered_stocks.csv")
-        expected = ["종목명", "종목코드", "현재가", "PER", "PBR", "EPS", "BPS", "배당률"]
+        expected = [
+            "종목명", "종목코드", "현재가",
+            "PER", "PBR", "EPS", "BPS", "배당률"
+        ]
         for col in expected:
             if col not in df.columns:
                 df[col] = np.nan
         return df
-    except:
+    except Exception:
         from update_stock_database import update_database
         try:
             update_database()
@@ -36,10 +39,12 @@ def load_filtered_data():
                 if col not in df.columns:
                     df[col] = np.nan
             return df
-        except:
+        except Exception:
             return pd.DataFrame()
 
-style = st.sidebar.radio("투자 성향", ["aggressive", "stable", "dividend"], horizontal=True)
+style = st.sidebar.radio(
+    "투자 성향", ["aggressive", "stable", "dividend"], horizontal=True
+)
 
 raw_df = load_filtered_data()
 if not isinstance(raw_df, pd.DataFrame):
@@ -55,9 +60,9 @@ scored_df["신뢰등급"] = scored_df.apply(assess_reliability, axis=1)
 
 st.subheader(f"투자 성향({style}) 통합 점수 TOP 10")
 top10 = scored_df.sort_values("score", ascending=False).head(10)
-st.dataframe(top10[[
-    "종목명", "종목코드", "현재가", "PER", "PBR", "EPS", "BPS", "배당률", "score", "신뢰등급"
-]])
+st.dataframe(top10[
+    ["종목명", "종목코드", "현재가", "PER", "PBR", "EPS", "BPS", "배당률", "score", "신뢰등급"]
+])
 
 st.subheader("종목 검색")
 keyword = st.text_input("종목명을 입력하세요")
@@ -81,52 +86,60 @@ else:
     st.plotly_chart(plot_price_rsi_macd(df_price), use_container_width=True)
 
     st.subheader("📌 추천 매수가 / 매도가")
-    try:
-        price_now = df_price['종가'].iloc[-1]
-        price_std = df_price['종가'].std()
-        ema_now = df_price['EMA20'].iloc[-1]
-        rsi_now = df_price['RSI'].iloc[-1]
-        rsi_prev = df_price['RSI'].iloc[-2]
-        macd_now = df_price['MACD'].iloc[-1]
-        macd_prev = df_price['MACD'].iloc[-2]
-        signal_now = df_price['Signal'].iloc[-1]
-        signal_prev = df_price['Signal'].iloc[-2]
+    required_cols = ["RSI", "MACD", "Signal", "EMA20"]
+    if (
+        any(col not in df_price.columns for col in required_cols) or
+        df_price[required_cols].isna().any().any() or
+        len(df_price) < 3
+    ):
+        st.info("기술적 지표 데이터가 부족하여 추천가를 계산할 수 없습니다.")
+    else:
+        try:
+            price_now = df_price['종가'].iloc[-1]
+            price_std = df_price['종가'].std()
+            ema_now = df_price['EMA20'].iloc[-1]
+            rsi_now = df_price['RSI'].iloc[-1]
+            rsi_prev = df_price['RSI'].iloc[-2]
+            macd_now = df_price['MACD'].iloc[-1]
+            macd_prev = df_price['MACD'].iloc[-2]
+            signal_now = df_price['Signal'].iloc[-1]
+            signal_prev = df_price['Signal'].iloc[-2]
 
-        buy_price = None
-        sell_price = None
+            buy_price = None
+            sell_price = None
 
-        if (
-            (rsi_now < 35 and rsi_prev < rsi_now) or
-            (price_now < ema_now)
-        ) and (
-            macd_now > signal_now and macd_prev < signal_prev
-        ):
-            buy_price = price_now - price_std * 0.5
+            if (
+                (rsi_now < 35 and rsi_prev < rsi_now) or
+                (price_now < ema_now)
+            ) and (
+                macd_now > signal_now and macd_prev < signal_prev
+            ):
+                buy_price = price_now - price_std * 0.5
 
-        if (
-            (rsi_now > 65 and rsi_prev > rsi_now) or
-            (price_now > ema_now)
-        ) and (
-            macd_now < signal_now and macd_prev > signal_prev
-        ):
-            sell_price = price_now + price_std * 0.8
+            if (
+                (rsi_now > 65 and rsi_prev > rsi_now) or
+                (price_now > ema_now)
+            ) and (
+                macd_now < signal_now and macd_prev > signal_prev
+            ):
+                sell_price = price_now + price_std * 0.8
 
-        col1, col2 = st.columns(2)
+            col1, col2 = st.columns(2)
 
-        with col1:
-            if buy_price:
-                st.metric("추천 매수가", f"{buy_price:,.0f} 원")
-            else:
-                st.metric("추천 매수가", "조건 미충족")
+            with col1:
+                if buy_price:
+                    st.metric("추천 매수가", f"{buy_price:,.0f} 원")
+                else:
+                    st.metric("추천 매수가", "조건 미충족")
 
-        with col2:
-            if sell_price:
-                st.metric("추천 매도가", f"{sell_price:,.0f} 원")
-            else:
-                st.metric("추천 매도가", "조건 미충족")
+            with col2:
+                if sell_price:
+                    st.metric("추천 매도가", f"{sell_price:,.0f} 원")
+                else:
+                    st.metric("추천 매도가", "조건 미충족")
 
-    except Exception as e:
-        st.info("추천가 계산 실패")
+        except Exception:
+            st.info("추천가 계산 중 오류가 발생했습니다.")
 
 st.subheader("최신 뉴스")
 news = fetch_google_news(selected)
@@ -141,5 +154,5 @@ if st.button("데이터 수동 갱신"):
     try:
         update_database()
         st.success("갱신 완료! 다시 골드리 해주세요")
-    except:
+    except Exception:
         st.error("수동 갱신 실패")
