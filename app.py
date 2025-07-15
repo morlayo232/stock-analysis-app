@@ -3,6 +3,7 @@ import pandas as pd
 import numpy as np
 import os
 import sys
+import json
 
 sys.path.append(os.path.abspath("modules"))
 
@@ -15,6 +16,19 @@ from pykrx import stock
 
 st.set_page_config(page_title="투자 매니저", layout="wide")
 st.title("투자 매니저")
+
+# 즐겨찾기 기능
+FAV_FILE = "favorites.json"
+
+def load_favorites():
+    if os.path.exists(FAV_FILE):
+        with open(FAV_FILE, "r", encoding="utf-8") as f:
+            return json.load(f)
+    return []
+
+def save_favorites(fav_list):
+    with open(FAV_FILE, "w", encoding="utf-8") as f:
+        json.dump(fav_list, f, ensure_ascii=False)
 
 @st.cache_data
 def load_filtered_data():
@@ -88,6 +102,23 @@ else:
     st.warning("해당 종목이 없습니다.")
     st.stop()
 
+# 즐겨찾기 기능 UI
+fav_list = load_favorites()
+is_fav = selected in fav_list
+if st.button("⭐ 즐겨찾기 추가" if not is_fav else "★ 즐겨찾기 해제"):
+    if not is_fav:
+        fav_list.append(selected)
+    else:
+        fav_list = [x for x in fav_list if x != selected]
+    save_favorites(fav_list)
+    st.experimental_rerun()
+
+if fav_list:
+    st.subheader("⭐ 즐겨찾기 종목")
+    st.dataframe(scored_df[scored_df["종목명"].isin(fav_list)][
+        ["종목명", "종목코드", "현재가", "PER", "PBR", "EPS", "BPS", "배당률", "score", "신뢰등급"]
+    ])
+
 # 최신 재무 정보 표시 (그래프 위)
 st.subheader("📊 최신 재무 정보")
 try:
@@ -129,7 +160,6 @@ else:
 
     st.subheader("📌 추천 매수가 / 매도가")
     required_cols = ["RSI", "MACD", "Signal", "EMA20"]
-    # 진단용 로그 (꼭 남겨서 체크!)
     st.write("추천가 관련 최근 값:", df_price[required_cols + ['종가']].tail())
 
     if not all(col in df_price.columns for col in required_cols):
@@ -137,32 +167,40 @@ else:
     elif df_price[required_cols].tail(3).isna().any().any():
         st.info("기술적 지표의 최근 값에 결측치가 있어 추천가를 계산할 수 없습니다.")
     else:
-        # 추천가 산출 로직 완화: 최근 N일간이라도 조건 맞으면 추천
         window = 5
         recent = df_price.tail(window).reset_index()
         buy_price = None
         sell_price = None
         buy_date = None
         sell_date = None
+
+        # 날짜컬럼 일관성 확보
+        if '날짜' not in recent.columns:
+            recent['날짜'] = recent['index'] if 'index' in recent.columns else recent.index
+
         for i in range(1, len(recent)):
-            # 매수 조건
-            if (
-                (recent['RSI'].iloc[i] < 35 and recent['RSI'].iloc[i-1] < recent['RSI'].iloc[i]) or
-                (recent['종가'].iloc[i] < recent['EMA20'].iloc[i])
-            ) and (
-                recent['MACD'].iloc[i] > recent['Signal'].iloc[i] and recent['MACD'].iloc[i-1] < recent['Signal'].iloc[i-1]
-            ):
-                buy_price = recent['종가'].iloc[i]
-                buy_date = recent['날짜'].iloc[i] if '날짜' in recent.columns else recent.index[i]
-            # 매도 조건
-            if (
-                (recent['RSI'].iloc[i] > 65 and recent['RSI'].iloc[i-1] > recent['RSI'].iloc[i]) or
-                (recent['종가'].iloc[i] > recent['EMA20'].iloc[i])
-            ) and (
-                recent['MACD'].iloc[i] < recent['Signal'].iloc[i] and recent['MACD'].iloc[i-1] > recent['Signal'].iloc[i-1]
-            ):
-                sell_price = recent['종가'].iloc[i]
-                sell_date = recent['날짜'].iloc[i] if '날짜' in recent.columns else recent.index[i]
+            try:
+                rsi_now = float(recent['RSI'].iloc[i])
+                rsi_prev = float(recent['RSI'].iloc[i-1])
+                macd_now = float(recent['MACD'].iloc[i])
+                macd_prev = float(recent['MACD'].iloc[i-1])
+                signal_now = float(recent['Signal'].iloc[i])
+                signal_prev = float(recent['Signal'].iloc[i-1])
+                close_now = float(recent['종가'].iloc[i])
+                ema_now = float(recent['EMA20'].iloc[i])
+
+                # 매수조건
+                if ((rsi_now < 35 and rsi_prev < rsi_now) or (close_now < ema_now)) \
+                    and (macd_now > signal_now and macd_prev < signal_prev):
+                    buy_price = close_now
+                    buy_date = recent['날짜'].iloc[i]
+                # 매도조건
+                if ((rsi_now > 65 and rsi_prev > rsi_now) or (close_now > ema_now)) \
+                    and (macd_now < signal_now and macd_prev > signal_prev):
+                    sell_price = close_now
+                    sell_date = recent['날짜'].iloc[i]
+            except Exception:
+                continue
 
         col1, col2 = st.columns(2)
         with col1:
@@ -238,10 +276,7 @@ if st.button(f"🔄 {selected} 데이터만 즉시 갱신"):
         update_single_stock(code)
         st.success(f"{selected} 데이터만 갱신 완료!")
         st.cache_data.clear()
-        raw_df = load_filtered_data()
-        scored_df = finalize_scores(raw_df, style=style)
-        scored_df["신뢰등급"] = scored_df.apply(assess_reliability, axis=1)
-        top10 = scored_df.sort_values("score", ascending=False).head(10)
+        st.experimental_rerun()  # 즉시 새로고침
     except Exception:
         st.error("개별 종목 갱신 실패")
 
@@ -251,10 +286,7 @@ if st.button("🗂️ 전체 종목 수동 갱신"):
         update_database()
         st.success("전체 데이터 갱신 완료!")
         st.cache_data.clear()
-        raw_df = load_filtered_data()
-        scored_df = finalize_scores(raw_df, style=style)
-        scored_df["신뢰등급"] = scored_df.apply(assess_reliability, axis=1)
-        top10 = scored_df.sort_values("score", ascending=False).head(10)
+        st.experimental_rerun()
     except Exception:
         st.error("전체 갱신 실패")
 
