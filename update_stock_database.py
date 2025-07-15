@@ -32,7 +32,7 @@ def fetch_fundamental(code):
     return {'PER': None, 'PBR': None, 'EPS': None, 'BPS': None, '배당률': None}
 
 def update_database():
-    df_list = pd.read_csv("initial_krx_list_test.csv")
+    df_list = pd.read_csv("initial_krx_list.csv")
     data = []
     for _, row in df_list.iterrows():
         name = row['종목명']
