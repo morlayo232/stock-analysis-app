@@ -1,15 +1,23 @@
 import pandas as pd
-from modules.fetch_price import fetch_price
-from modules.fetch_naver import fetch_naver_fundamentals
-from modules.calculate_indicators import add_tech_indicators
+import sys
+import os
+
+# modules 폴더가 현재 파일과 같은 경로에 있을 때만 작동 (권장 구조)
+MODULE_DIR = os.path.join(os.path.dirname(__file__), "modules")
+if MODULE_DIR not in sys.path:
+    sys.path.append(MODULE_DIR)
+
+from fetch_price import fetch_price
+from fetch_naver import fetch_naver_fundamentals
+from calculate_indicators import add_tech_indicators
 
 def update_database():
     """
     전체 종목 데이터 일괄 갱신 (filtered_stocks.csv 전체)
     """
-    df = pd.read_csv("filtered_stocks.csv")
+    df = pd.read_csv("filtered_stocks.csv", dtype={'종목코드': str})
     for i, row in df.iterrows():
-        code = row['종목코드']
+        code = str(row['종목코드'])
         try:
             price_df = fetch_price(code)
             if price_df is not None and not price_df.empty:
@@ -28,15 +36,15 @@ def update_single_stock(code):
     """
     특정 종목코드(code)만 최신 데이터로 갱신
     """
-    df = pd.read_csv("filtered_stocks.csv")
-    row_idx = df[df['종목코드'] == code].index
+    df = pd.read_csv("filtered_stocks.csv", dtype={'종목코드': str})
+    row_idx = df[df['종목코드'] == str(code)].index
     if len(row_idx) == 0:
         raise Exception("종목코드 없음")
     try:
-        price_df = fetch_price(code)
+        price_df = fetch_price(str(code))
         if price_df is not None and not price_df.empty:
             price_df = add_tech_indicators(price_df)
-            fin = fetch_naver_fundamentals(code)
+            fin = fetch_naver_fundamentals(str(code))
             for col in ['현재가', 'PER', 'PBR', 'EPS', 'BPS', '배당률']:
                 if col in fin:
                     df.at[row_idx[0], col] = fin[col]
