@@ -90,4 +90,29 @@ else:
 # 본문 종목 기본 선택 처리: 즐겨찾기 선택 > TOP10 > 전체
 if sidebar_fav_selected:
     selected = sidebar_fav_selected
-    code = scored_df[scored_df["종목명"] == selected]["종목
+    code = scored_df[scored_df["종목명"] == selected]["종목코드"].values[0]
+else:
+    quick_selected = st.selectbox("TOP10 종목명", top10["종목명"].tolist(), key="top10_selectbox")
+    st.subheader(f"투자 성향({style}) 통합 점수 TOP 10")
+    st.dataframe(top10[
+        ["종목명", "종목코드", "현재가", "PER", "PBR", "EPS", "BPS", "배당률", "score", "신뢰등급"]
+    ])
+    st.subheader("종목 검색")
+    keyword = st.text_input("종목명을 입력하세요")
+    if keyword:
+        filtered = scored_df[scored_df["종목명"].str.contains(keyword, case=False, na=False)]
+        select_candidates = filtered["종목명"].tolist()
+        default_index = 0
+    elif quick_selected:
+        select_candidates = [quick_selected]
+        default_index = 0
+    else:
+        select_candidates = scored_df["종목명"].tolist()
+        default_index = 0
+
+    if select_candidates:
+        selected = st.selectbox("종목 선택", select_candidates, index=default_index, key="main_selectbox")
+        code = scored_df[scored_df["종목명"] == selected]["종목코드"].values[0]
+    else:
+        st.warning("해당 종목이 없습니다.")
+        st.stop()
