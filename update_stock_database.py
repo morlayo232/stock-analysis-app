@@ -1,57 +1,49 @@
 import pandas as pd
-from pykrx import stock
-from datetime import datetime
-import sys
-import os
-sys.path.append(os.path.join(os.path.dirname(__file__), "modules"))
-from score_utils import finalize_scores
-
-def fetch_price(code):
-    today = datetime.today().strftime("%Y%m%d")
-    try:
-        df = stock.get_market_ohlcv_by_date(today, today, code)
-        if not df.empty:
-            return int(df['종가'][-1])
-    except:
-        return None
-
-def fetch_fundamental(code):
-    today = datetime.today().strftime("%Y%m%d")
-    try:
-        df = stock.get_market_fundamental_by_date(today, today, code)
-        if not df.empty:
-            return {
-                'PER': float(df['PER'][-1]),
-                'PBR': float(df['PBR'][-1]),
-                'EPS': float(df['EPS'][-1]),
-                'BPS': float(df['BPS'][-1]),
-                '배당률': float(df['DIV'][-1])
-            }
-    except:
-        return {'PER': None, 'PBR': None, 'EPS': None, 'BPS': None, '배당률': None}
+from modules.fetch_price import fetch_price
+from modules.fetch_naver import fetch_naver_fundamentals
+from modules.calculate_indicators import add_tech_indicators
 
 def update_database():
-    df_list = pd.read_csv("initial_krx_list.csv")
-    codes = dict(zip(df_list['종목명'], df_list['종목코드']))
-    data = []
-    for name, code in codes.items():
-        price = fetch_price(code)
-        fin = fetch_fundamental(code)
-        data.append({
-            "종목명": name,
-            "종목코드": code,
-            "현재가": price,
-            "PER": fin['PER'],
-            "PBR": fin['PBR'],
-            "EPS": fin['EPS'],
-            "BPS": fin['BPS'],
-            "배당률": fin['배당률']
-        })
-
-    df = pd.DataFrame(data)
-    df = finalize_scores(df, style="aggressive")
+    """
+    전체 종목 데이터 일괄 갱신 (filtered_stocks.csv 전체)
+    """
+    df = pd.read_csv("filtered_stocks.csv")
+    for i, row in df.iterrows():
+        code = row['종목코드']
+        try:
+            price_df = fetch_price(code)
+            if price_df is not None and not price_df.empty:
+                price_df = add_tech_indicators(price_df)
+                fin = fetch_naver_fundamentals(code)
+                for col in ['현재가', 'PER', 'PBR', 'EPS', 'BPS', '배당률']:
+                    if col in fin:
+                        df.at[i, col] = fin[col]
+                    elif col in price_df.columns:
+                        df.at[i, col] = price_df[col].iloc[-1]
+        except Exception as e:
+            print(f"{code} 갱신 실패: {e}")
     df.to_csv("filtered_stocks.csv", index=False)
-    print("filtered_stocks.csv 저장 완료!")
 
-if __name__ == "__main__":
-    update_database()
+def update_single_stock(code):
+    """
+    특정 종목코드(code)만 최신 데이터로 갱신
+    """
+    df = pd.read_csv("filtered_stocks.csv")
+    row_idx = df[df['종목코드'] == code].index
+    if len(row_idx) == 0:
+        raise Exception("종목코드 없음")
+    try:
+        price_df = fetch_price(code)
+        if price_df is not None and not price_df.empty:
+            price_df = add_tech_indicators(price_df)
+            fin = fetch_naver_fundamentals(code)
+            for col in ['현재가', 'PER', 'PBR', 'EPS', 'BPS', '배당률']:
+                if col in fin:
+                    df.at[row_idx[0], col] = fin[col]
+                elif col in price_df.columns:
+                    df.at[row_idx[0], col] = price_df[col].iloc[-1]
+        df.to_csv("filtered_stocks.csv", index=False)
+        return True
+    except Exception as e:
+        print(f"{code} 단일 갱신 실패: {e}")
+        raise
