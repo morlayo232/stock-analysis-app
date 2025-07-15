@@ -15,6 +15,8 @@ def update_database():
             for col in ['현재가', 'PER', 'PBR', 'EPS', 'BPS', '배당률']:
                 if col in price_df.columns:
                     df.at[i, col] = price_df[col].iloc[-1]
+                else:
+                    print(f"[전체 갱신][{code}] 컬럼 {col} 없음")
         except Exception as e:
             print(f"[전체 갱신][{code}] 오류: {e}")
     df.to_csv("filtered_stocks.csv", index=False)
@@ -35,6 +37,8 @@ def update_single_stock(code):
         for col in ['현재가', 'PER', 'PBR', 'EPS', 'BPS', '배당률']:
             if col in price_df.columns:
                 df.at[row_idx[0], col] = price_df[col].iloc[-1]
+            else:
+                print(f"[개별 갱신][{code}] 컬럼 {col} 없음")
         df.to_csv("filtered_stocks.csv", index=False)
         print(f"[개별 갱신][{code}] 성공적으로 반영됨.")
         return True
