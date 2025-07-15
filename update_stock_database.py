@@ -36,6 +36,7 @@ def update_single_stock(code):
     if len(row_idx) == 0:
         st.error(f"[개별 갱신][{code}] filtered_stocks.csv에 해당 종목코드 없음")
         raise Exception(f"종목코드({code}) 없음")
+    idx = int(row_idx[0])
     try:
         price_df = fetch_price(code)
         st.write("price_df shape:", price_df.shape if price_df is not None else None)
@@ -48,7 +49,7 @@ def update_single_stock(code):
         for col in ['현재가', 'PER', 'PBR', 'EPS', 'BPS', '배당률']:
             st.write(f"컬럼 {col} 값:", price_df[col].iloc[-1] if col in price_df.columns else "없음")
             if col in price_df.columns:
-                df.at[row_idx[0], col] = price_df[col].iloc[-1]
+                df.at[idx, col] = price_df[col].iloc[-1]
         df.to_csv("filtered_stocks.csv", index=False)
         st.success(f"[개별 갱신][{code}] 성공적으로 반영됨.")
         return True
