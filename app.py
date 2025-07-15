@@ -57,7 +57,6 @@ if raw_df.empty:
 
 scored_df = finalize_scores(raw_df, style=style)
 scored_df["신뢰등급"] = scored_df.apply(assess_reliability, axis=1)
-
 top10 = scored_df.sort_values("score", ascending=False).head(10)
 
 # TOP10 종목 빠른 선택 (표 위)
@@ -221,7 +220,12 @@ if st.button(f"🔄 {selected} 데이터만 즉시 갱신"):
     from update_stock_database import update_single_stock
     try:
         update_single_stock(code)
-        st.success(f"{selected} 데이터만 갱신 완료! 페이지를 새로고침 해주세요.")
+        st.success(f"{selected} 데이터만 갱신 완료!")
+        st.cache_data.clear()
+        raw_df = load_filtered_data()
+        scored_df = finalize_scores(raw_df, style=style)
+        scored_df["신뢰등급"] = scored_df.apply(assess_reliability, axis=1)
+        top10 = scored_df.sort_values("score", ascending=False).head(10)
     except Exception:
         st.error("개별 종목 갱신 실패")
 
@@ -229,7 +233,12 @@ if st.button("🗂️ 전체 종목 수동 갱신"):
     from update_stock_database import update_database
     try:
         update_database()
-        st.success("전체 데이터 갱신 완료! 페이지를 새로고침 해주세요.")
+        st.success("전체 데이터 갱신 완료!")
+        st.cache_data.clear()
+        raw_df = load_filtered_data()
+        scored_df = finalize_scores(raw_df, style=style)
+        scored_df["신뢰등급"] = scored_df.apply(assess_reliability, axis=1)
+        top10 = scored_df.sort_values("score", ascending=False).head(10)
     except Exception:
         st.error("전체 갱신 실패")
 
