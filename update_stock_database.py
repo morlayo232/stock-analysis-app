@@ -46,7 +46,7 @@ def update_database():
     df.to_csv("filtered_stocks.csv", index=False)
     print("filtered_stocks.csv로 저장 완료!")
 
-def update_single_stock(code):
+def def update_single_stock(code):
     import streamlit as st
     import pandas as pd
     from pykrx import stock
@@ -64,4 +64,29 @@ def update_single_stock(code):
     idx = int(row_idx[0])
     try:
         today = datetime.today()
-        start = (today - timedelta(days=
+        start = (today - timedelta(days=365)).strftime("%Y%m%d")
+        end = today.strftime("%Y%m%d")
+        df_price = stock.get_market_ohlcv_by_date(start, end, code)
+        if df_price is None or df_price.empty:
+            st.error(f"[개별 갱신][{code}] 가격 데이터 없음")
+            return False
+        df_price = add_tech_indicators(df_price)
+        fund = stock.get_market_fundamental_by_date(end, end, code)
+        df.at[idx, '현재가'] = int(df_price['종가'].iloc[-1])
+        if not fund.empty:
+            for col in ['PER', 'PBR', 'EPS', 'BPS', 'DIV']:
+                if col in fund.columns:
+                    val = fund[col].iloc[-1]
+                    if col == "DIV":
+                        df.at[idx, '배당률'] = val
+                    else:
+                        df.at[idx, col] = val
+        for col in ['RSI', 'MACD', 'Signal', 'EMA20']:
+            if col in df_price.columns:
+                df.at[idx, col] = df_price[col].iloc[-1]
+        df.to_csv("filtered_stocks.csv", index=False)
+        st.success(f"[개별 갱신][{code}] 최신 데이터 및 기술지표 반영됨")
+        return True
+    except Exception as e:
+        st.warning(f"[개별 갱신][{code}] 경고: {e}")
+        return False  # 파일의 마지막 부분까지 반드시 코드가 닫혀야 함
