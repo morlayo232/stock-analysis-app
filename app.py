@@ -76,6 +76,7 @@ selected = None
 code = None
 
 with st.sidebar:
+with st.sidebar:
     st.markdown("#### ⭐ 즐겨찾기")
     fav_dropdown = st.selectbox("즐겨찾기 선택", fav_list, key="fav_dropdown") if fav_list else None
     all_candidates = scored_df["종목명"].tolist()
@@ -86,20 +87,22 @@ with st.sidebar:
     else:
         search_candidates = all_candidates
     search_selected = st.selectbox("전체 종목 선택", search_candidates, key="all_selectbox")
-    # 최종 선택 우선순위: 즐겨찾기 > 검색(선택)
+    # 최종 선택
     if fav_dropdown:
         selected = fav_dropdown
     else:
         selected = search_selected
     code = scored_df[scored_df["종목명"] == selected]["종목코드"].values[0]
     is_fav = selected in fav_list
-    if st.button("⭐ 즐겨찾기 추가" if not is_fav else "★ 즐겨찾기 해제", key="fav_btn2"):
+    clicked = st.button("⭐ 즐겨찾기 추가" if not is_fav else "★ 즐겨찾기 해제", key="fav_btn2")
+    if clicked:
         if not is_fav:
             fav_list.append(selected)
         else:
             fav_list = [x for x in fav_list if x != selected]
         save_favorites(fav_list)
         st.rerun()
+        st.stop()
 
 # ------------------ 본문(선택 종목) ------------------
 if not selected or not code:
