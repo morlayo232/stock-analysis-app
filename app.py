@@ -69,25 +69,20 @@ scored_df["신뢰등급"] = scored_df.apply(assess_reliability, axis=1)
 all_candidates = scored_df["종목명"].tolist()
 top10 = scored_df.sort_values("score", ascending=False).head(10)
 
-# -- 사이드바 즐겨찾기 멀티셀렉트 --
 with st.sidebar:
-    st.markdown("#### ⭐ 즐겨찾기")
+    st.markdown("#### ⭐ 즐겨찾기 관리")
     fav_list = load_favorites()
-    fav_selected = st.multiselect("즐겨찾기 목록", all_candidates, default=fav_list, key="fav_multiselect")
-    # 저장 버튼
+    fav_selected = st.multiselect("즐겨찾기 등록/해제", all_candidates, default=fav_list, key="fav_multiselect")
+    # 저장 버튼(등록/해제 반영)
     if st.button("⭐ 즐겨찾기 저장", key="fav_save"):
         save_favorites(fav_selected)
         st.rerun()
         st.stop()
+    st.markdown("---")
+    # 조회 종목: 즐겨찾기 여부와 무관하게 전체 종목 중 선택 가능
+    current_selected = st.selectbox("조회 종목 선택", all_candidates, key="main_selectbox")
 
-# 즐겨찾기에서 1개 이상 선택시 첫 번째 종목을 대표로 선택
-if fav_selected:
-    selected = fav_selected[0]
-else:
-    st.subheader("TOP10 종목 빠른 선택")
-    quick_selected = st.selectbox("TOP10 종목명", top10["종목명"].tolist(), key="top10_selectbox")
-    selected = quick_selected
-
+selected = current_selected
 code = scored_df[scored_df["종목명"] == selected]["종목코드"].values[0]
 
 st.subheader(f"선택 종목: {selected}")
