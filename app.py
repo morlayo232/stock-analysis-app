@@ -101,9 +101,9 @@ else:
     df_price = add_tech_indicators(df_price)
     # 3분할 차트(종가+EMA, RSI, MACD) 표시
     fig, fig_rsi, fig_macd = plot_price_rsi_macd(df_price)
-    st.plotly_chart(fig, use_container_width=True)
-    st.plotly_chart(fig_rsi, use_container_width=True)
-    st.plotly_chart(fig_macd, use_container_width=True)
+    st.plotly_chart(fig, use_container_width=True, key="main_chart")
+    st.plotly_chart(fig_rsi, use_container_width=True, key="rsi_chart")
+    st.plotly_chart(fig_macd, use_container_width=True, key="macd_chart")
 
     # 지표 해설/초보 투자TIP 안내
     st.info(
