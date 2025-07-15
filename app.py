@@ -2,10 +2,12 @@ import streamlit as st
 import pandas as pd
 import os
 import numpy as np
-from modules.score_utils import finalize_scores, assess_reliability
-from modules.fetch_news import fetch_google_news
-from modules.chart_utils import plot_price_rsi_macd
-from modules.calculate_indicators import add_tech_indicators
+import sys
+sys.path.append(os.path.join(os.path.dirname(__file__), "modules"))
+from score_utils import finalize_scores, assess_reliability
+from fetch_news import fetch_google_news
+from chart_utils import plot_price_rsi_macd
+from calculate_indicators import add_tech_indicators
 from datetime import datetime
 from pykrx import stock
 
@@ -49,7 +51,9 @@ scored_df["신뢰등급"] = scored_df.apply(assess_reliability, axis=1)
 
 st.subheader(f"투자 성향({style}) 통합 점수 TOP 10")
 top10 = scored_df.sort_values("score", ascending=False).head(10)
-st.dataframe(top10[["종목명", "종목코드", "현재가", "PER", "PBR", "ROE", "배당률", "score", "신뢰등급"]])
+st.dataframe(top10[[
+    "종목명", "종목코드", "현재가", "PER", "PBR", "ROE", "배당률", "score", "신뢰등급"
+]])
 
 selected = st.selectbox("종목 선택", top10["종목명"].tolist())
 code = top10[top10["종목명"] == selected]["종목코드"].values[0]
@@ -57,6 +61,7 @@ code = top10[top10["종목명"] == selected]["종목코드"].values[0]
 start = "20240101"
 end = datetime.today().strftime("%Y%m%d")
 df_price = stock.get_market_ohlcv_by_date(start, end, code)
+
 if df_price is None or df_price.empty:
     st.warning("가격 데이터 추적 실패")
 else:
