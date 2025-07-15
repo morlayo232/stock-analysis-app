@@ -99,3 +99,7 @@ def update_single_stock(code):
     except Exception as e:
         st.warning(f"[개별 갱신][{code}] 경고: {e}")
         return False
+    import os
+        print("== 파일 생성 여부 ==", os.path.exists("filtered_stocks.csv"))
+        print("== 현재 디렉토리 ==", os.getcwd())
+        print("== 파일 목록 ==", os.listdir("."))
