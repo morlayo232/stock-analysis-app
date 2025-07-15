@@ -1,5 +1,3 @@
-# 📄 app.py
-
 import streamlit as st
 import pandas as pd
 import numpy as np
@@ -89,6 +87,22 @@ if select_candidates:
 else:
     st.warning("해당 종목이 없습니다.")
     st.stop()
+
+# =========================
+# 🔥 여기에 최신 재무 정보 표시(그래프 위) 추가
+st.subheader("📊 최신 재무 정보")
+try:
+    info_row = scored_df[scored_df["종목명"] == selected].iloc[0]
+    col1, col2, col3, col4, col5, col6 = st.columns(6)
+    col1.metric("PER", f"{info_row['PER']:.2f}" if pd.notna(info_row['PER']) else "-")
+    col2.metric("PBR", f"{info_row['PBR']:.2f}" if pd.notna(info_row['PBR']) else "-")
+    col3.metric("EPS", f"{int(info_row['EPS']):,}" if pd.notna(info_row['EPS']) else "-")
+    col4.metric("BPS", f"{int(info_row['BPS']):,}" if pd.notna(info_row['BPS']) else "-")
+    col5.metric("배당률(%)", f"{info_row['배당률']:.2f}" if pd.notna(info_row['배당률']) else "-")
+    col6.metric("점수", f"{info_row['score']:.3f}" if pd.notna(info_row['score']) else "-")
+except Exception:
+    st.info("재무 데이터가 부족합니다.")
+# =========================
 
 start = "20240101"
 end = datetime.today().strftime("%Y%m%d")
