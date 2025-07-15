@@ -1,6 +1,7 @@
 import streamlit as st
 import pandas as pd
 import os
+import numpy as np
 from modules.score_utils import finalize_scores, assess_reliability
 from modules.fetch_news import fetch_google_news
 from modules.chart_utils import plot_price_rsi_macd
@@ -14,20 +15,33 @@ st.title("투자 매니저")
 @st.cache_data
 def load_filtered_data():
     try:
-        return pd.read_csv("filtered_stocks.csv")
+        df = pd.read_csv("filtered_stocks.csv")
+        expected = ["종목명", "종목코드", "현재가", "PER", "PBR", "ROE", "배당률"]
+        for col in expected:
+            if col not in df.columns:
+                df[col] = np.nan
+        return df
     except:
         from update_stock_database import update_database
         try:
             update_database()
-            return pd.read_csv("filtered_stocks.csv")
+            df = pd.read_csv("filtered_stocks.csv")
+            for col in expected:
+                if col not in df.columns:
+                    df[col] = np.nan
+            return df
         except:
             return pd.DataFrame()
 
 style = st.sidebar.radio("투자 성향", ["aggressive", "stable", "dividend"], horizontal=True)
 
 raw_df = load_filtered_data()
+if not isinstance(raw_df, pd.DataFrame):
+    st.error("데이터가 DataFrame 형식이 아닙니다.")
+    st.stop()
+
 if raw_df.empty:
-    st.error("데이터를 로드할 수 없습니다.")
+    st.error("데이터프레임이 비어 있습니다.")
     st.stop()
 
 scored_df = finalize_scores(raw_df, style=style)
@@ -35,7 +49,7 @@ scored_df["신뢰등급"] = scored_df.apply(assess_reliability, axis=1)
 
 st.subheader(f"투자 성향({style}) 통합 점수 TOP 10")
 top10 = scored_df.sort_values("score", ascending=False).head(10)
-st.dataframe(top10[["종목명", "종목코드", "현재가", "PER", "PBR", "ROE", "배당수익률", "score", "신뢰등급"]])
+st.dataframe(top10[["종목명", "종목코드", "현재가", "PER", "PBR", "ROE", "배당률", "score", "신뢰등급"]])
 
 selected = st.selectbox("종목 선택", top10["종목명"].tolist())
 code = top10[top10["종목명"] == selected]["종목코드"].values[0]
@@ -43,7 +57,7 @@ code = top10[top10["종목명"] == selected]["종목코드"].values[0]
 start = "20240101"
 end = datetime.today().strftime("%Y%m%d")
 df_price = stock.get_market_ohlcv_by_date(start, end, code)
-if df_price.empty:
+if df_price is None or df_price.empty:
     st.warning("가격 데이터 추적 실패")
 else:
     df_price = add_tech_indicators(df_price)
@@ -59,5 +73,8 @@ else:
 
 if st.button("데이터 수동 갱신"):
     from update_stock_database import update_database
-    update_database()
-    st.success("갱신 완료! 다시 골드리 해주세요")
+    try:
+        update_database()
+        st.success("갱신 완료! 다시 골드리 해주세요")
+    except:
+        st.error("수동 갱신 실패")
