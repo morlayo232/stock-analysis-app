@@ -46,7 +46,7 @@ def update_database():
     df.to_csv("filtered_stocks.csv", index=False)
     print("filtered_stocks.csv로 저장 완료!")
 
-def def update_single_stock(code):
+def update_single_stock(code):
     import streamlit as st
     import pandas as pd
     from pykrx import stock
@@ -78,7 +78,7 @@ def def update_single_stock(code):
                 if col in fund.columns:
                     val = fund[col].iloc[-1]
                     if col == "DIV":
-                        df.at[idx, '배당률'] = val
+                        df.at[idx, '배당수익률'] = val
                     else:
                         df.at[idx, col] = val
         for col in ['RSI', 'MACD', 'Signal', 'EMA20']:
@@ -89,4 +89,4 @@ def def update_single_stock(code):
         return True
     except Exception as e:
         st.warning(f"[개별 갱신][{code}] 경고: {e}")
-        return False  # 파일의 마지막 부분까지 반드시 코드가 닫혀야 함
+        return False
