@@ -1,32 +1,43 @@
+# modules/chart_utils.py
+
 import plotly.graph_objs as go
 
 def plot_price_rsi_macd(df):
-    # 1. 메인 차트
+    # 1. 메인 차트(골든/데드 텍스트 제거, 마커 소형/반투명)
     fig = go.Figure()
     fig.add_trace(go.Scatter(
         x=df.index, y=df['종가'], name="종가", line=dict(color='#3366CC', width=2)))
     if 'EMA20' in df:
         fig.add_trace(go.Scatter(
             x=df.index, y=df['EMA20'], name="EMA(20)", line=dict(color='#FF9900', dash='dot', width=2)))
-    # 골든/데드 크로스 표시(색상: 골든-초록, 데드-빨강)
     if 'EMA20' in df:
         cross = (df['종가'] > df['EMA20']).astype(int).diff()
         golden = df.index[(cross == 1)].tolist()
         dead = df.index[(cross == -1)].tolist()
-        for idx in golden:
+        # 골든크로스: 초록 삼각(위), 반투명
+        if golden:
             fig.add_trace(go.Scatter(
-                x=[idx], y=[df.loc[idx, '종가']],
-                mode="markers+text", marker=dict(color='green', size=14, symbol='triangle-up'),
-                text=["골든"], name="골든크로스", textposition="top center"))
-        for idx in dead:
+                x=golden,
+                y=[df.loc[idx, '종가'] for idx in golden],
+                mode="markers",
+                marker=dict(color='rgba(0,200,0,0.4)', size=10, symbol='triangle-up'),
+                name="골든크로스"
+            ))
+        # 데드크로스: 빨강 삼각(아래), 반투명
+        if dead:
             fig.add_trace(go.Scatter(
-                x=[idx], y=[df.loc[idx, '종가']],
-                mode="markers+text", marker=dict(color='red', size=14, symbol='triangle-down'),
-                text=["데드"], name="데드크로스", textposition="bottom center"))
+                x=dead,
+                y=[df.loc[idx, '종가'] for idx in dead],
+                mode="markers",
+                marker=dict(color='rgba(200,0,0,0.4)', size=10, symbol='triangle-down'),
+                name="데드크로스"
+            ))
     fig.update_layout(
         title="가격(종가), EMA(20), 골든/데드크로스",
         yaxis_title="가격(원)", legend_title="지표",
-        template="plotly_white", height=400, width=900, font=dict(size=13)
+        template="plotly_white", height=400, width=900, font=dict(size=13),
+        margin=dict(t=60, b=50),  # 위아래 여백 추가
+        legend=dict(itemsizing='constant')
     )
 
     # 2. RSI 차트
