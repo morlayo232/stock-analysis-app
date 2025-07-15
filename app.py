@@ -99,13 +99,11 @@ if df_price is None or df_price.empty:
     st.warning("가격 데이터 추적 실패")
 else:
     df_price = add_tech_indicators(df_price)
-    # 3분할 차트(종가+EMA, RSI, MACD) 표시
     fig, fig_rsi, fig_macd = plot_price_rsi_macd(df_price)
     st.plotly_chart(fig, use_container_width=True, key="main_chart")
     st.plotly_chart(fig_rsi, use_container_width=True, key="rsi_chart")
     st.plotly_chart(fig_macd, use_container_width=True, key="macd_chart")
 
-    # 지표 해설/초보 투자TIP 안내
     st.info(
         "- **종가/EMA(20):** 단기 추세·매매 타이밍 참고. EMA 하락돌파 후 반등, 상승돌파 후 조정 체크!\n"
         "- **골든크로스:** 상승전환 시그널, **데드크로스:** 하락전환 시그널(실전에서는 한 박자 뒤 조치 권고)\n"
@@ -169,7 +167,6 @@ else:
         except Exception:
             st.info("추천가 계산 중 오류가 발생했습니다.")
 
-    # ======= 종목 평가 및 투자 전략 (전문가형) =======
     st.subheader("📋 종목 평가 및 투자 전략 (전문가 의견)")
     try:
         eval_lines = []
@@ -216,6 +213,28 @@ else:
     except Exception:
         st.info("종목 평가/전략을 분석할 데이터가 부족합니다.")
 
+# =========================
+# 👇👇👇 개별/전체 수동갱신 버튼 👇👇👇
+# =========================
+
+if st.button(f"🔄 {selected} 데이터만 즉시 갱신"):
+    from update_stock_database import update_single_stock
+    try:
+        update_single_stock(code)
+        st.success(f"{selected} 데이터만 갱신 완료! 페이지를 새로고침 해주세요.")
+    except Exception:
+        st.error("개별 종목 갱신 실패")
+
+if st.button("🗂️ 전체 종목 수동 갱신"):
+    from update_stock_database import update_database
+    try:
+        update_database()
+        st.success("전체 데이터 갱신 완료! 페이지를 새로고침 해주세요.")
+    except Exception:
+        st.error("전체 갱신 실패")
+
+# =========================
+
 st.subheader("최신 뉴스")
 news = fetch_google_news(selected)
 if news:
@@ -223,11 +242,3 @@ if news:
         st.markdown(f"- {n}")
 else:
     st.info("뉴스 정보 없음")
-
-if st.button("데이터 수동 갱신"):
-    from update_stock_database import update_database
-    try:
-        update_database()
-        st.success("갱신 완료! 다시 골드리 해주세요")
-    except Exception:
-        st.error("수동 갱신 실패")
