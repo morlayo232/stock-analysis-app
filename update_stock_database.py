@@ -22,28 +22,23 @@ def update_database():
     df.to_csv("filtered_stocks.csv", index=False)
 
 def update_single_stock(code):
-    print("===== [갱신 시작] =====")
-    print("입력 code:", code)
     df = pd.read_csv("filtered_stocks.csv", dtype={'종목코드': str})
-    print("filtered_stocks.csv 종목코드 샘플:", df['종목코드'].head())
     code = str(code).zfill(6)
-    print("코드 변환:", code)
     row_idx = df[df['종목코드'] == code].index
-    print("row_idx:", row_idx)
     if len(row_idx) == 0:
         print(f"[개별 갱신][{code}] filtered_stocks.csv에 해당 종목코드 없음")
         raise Exception(f"종목코드({code}) 없음")
     try:
         price_df = fetch_price(code)
-        print("price_df:", price_df.head())
         if price_df is None or price_df.empty:
             print(f"[개별 갱신][{code}] fetch_price 결과 없음/빈 데이터")
             raise Exception(f"fetch_price({code}) 결과 없음/빈 데이터")
         price_df = add_tech_indicators(price_df)
         for col in ['현재가', 'PER', 'PBR', 'EPS', 'BPS', '배당률']:
-            print(f"컬럼 {col} 값:", price_df[col].iloc[-1] if col in price_df.columns else "없음")
             if col in price_df.columns:
                 df.at[row_idx[0], col] = price_df[col].iloc[-1]
+            else:
+                print(f"[개별 갱신][{code}] 컬럼 {col} 없음")
         df.to_csv("filtered_stocks.csv", index=False)
         print(f"[개별 갱신][{code}] 성공적으로 반영됨.")
         return True
