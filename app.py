@@ -157,6 +157,53 @@ else:
         except Exception:
             st.info("추천가 계산 중 오류가 발생했습니다.")
 
+    # ======= 종목 평가 및 투자 전략 (전문가형) =======
+    st.subheader("📋 종목 평가 및 투자 전략 (전문가 의견)")
+    try:
+        eval_lines = []
+        per = scored_df.loc[scored_df["종목명"] == selected, "PER"].values[0]
+        if per < 7:
+            eval_lines.append("✔️ [PER] 현 주가수익비율(PER)이 7 미만입니다. 이는 이익 대비 현재 주가가 낮게 형성돼 있다는 뜻으로, 실적 안정성이 유지된다면 저평가된 종목으로 볼 수 있습니다. (초보 Tip: PER이 낮을수록 저평가, 단 업종별 차이 주의)")
+        elif per > 20:
+            eval_lines.append("⚠️ [PER] PER이 20을 초과합니다. 단기적으로 고평가 구간에 있을 수 있으므로 실적 성장 지속성, 업종 특성도 함께 체크하세요.")
+        pbr = scored_df.loc[scored_df["종목명"] == selected, "PBR"].values[0]
+        if pbr < 1:
+            eval_lines.append("✔️ [PBR] PBR이 1 미만으로, 회사의 순자산보다 낮게 거래되고 있습니다. 이는 청산가치보다도 저렴하단 의미로, 가치주 투자자에게 매력적인 구간입니다.")
+        elif pbr > 2:
+            eval_lines.append("⚠️ [PBR] PBR이 2를 초과합니다. 시장에서 미래 성장성을 선반영하고 있거나, 자산가치에 비해 과도하게 평가받는 구간일 수 있습니다.")
+        div = scored_df.loc[scored_df["종목명"] == selected, "배당률"].values[0]
+        if div > 3:
+            eval_lines.append("💰 [배당] 배당수익률이 3%를 넘어, 배당 투자 관점에서도 긍정적입니다. (초보 Tip: 배당주는 변동성 낮고 장기 투자자에게 유리)")
+        elif div < 1:
+            eval_lines.append("💡 [배당] 배당수익률이 1% 미만으로 낮은 편입니다. 성장주 또는 재투자형 기업일 가능성이 높으니 목적에 맞게 접근하세요.")
+        eps = scored_df.loc[scored_df["종목명"] == selected, "EPS"].values[0]
+        if eps > 0:
+            eval_lines.append("🟢 [EPS] 최근 분기 흑자 유지, 재무적으로 견조합니다.")
+        else:
+            eval_lines.append("🔴 [EPS] 최근 분기 적자, 단기적 재무 구조점검 필요.")
+        bps = scored_df.loc[scored_df["종목명"] == selected, "BPS"].values[0]
+        if bps > 0:
+            eval_lines.append("🟢 [BPS] 자산가치 기반으로도 안정적입니다.")
+        if "RSI" in df_price.columns and not np.isnan(df_price['RSI'].iloc[-1]):
+            rsi_now = df_price['RSI'].iloc[-1]
+            if rsi_now < 35:
+                eval_lines.append("📉 [RSI] 단기 과매도 상태입니다. 조정 후 반등 가능성 체크 필요.")
+            elif rsi_now > 65:
+                eval_lines.append("📈 [RSI] 단기 과매수 구간입니다. 단기 차익 실현 구간일 수 있습니다.")
+        score = scored_df.loc[scored_df["종목명"] == selected, "score"].values[0]
+        q80 = scored_df["score"].quantile(0.8)
+        q20 = scored_df["score"].quantile(0.2)
+        if score > q80:
+            eval_lines.append("✅ [종합 진단] 전문가 의견: 현재 투자 매력도가 매우 높은 편입니다. 성장성, 수익성, 안정성 지표 모두 양호하므로 적극적 매수 또는 분할 매수 전략을 고려해볼 만합니다.")
+        elif score < q20:
+            eval_lines.append("❌ [종합 진단] 전문가 의견: 투자 매력도가 낮은 구간입니다. 추가 모니터링 또는 조정 후 진입을 권장합니다.")
+        else:
+            eval_lines.append("☑️ [종합 진단] 전문가 의견: 시장 평균 수준. 가격 조정 시 분할 매수, 장기 투자 전략이 적합합니다.")
+        for line in eval_lines:
+            st.markdown(f"- {line}")
+    except Exception:
+        st.info("종목 평가/전략을 분석할 데이터가 부족합니다.")
+
 st.subheader("최신 뉴스")
 news = fetch_google_news(selected)
 if news:
