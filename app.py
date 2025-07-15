@@ -55,13 +55,10 @@ def load_filtered_data():
         except Exception:
             return pd.DataFrame()
 
-# ------------------ 사이드바 ------------------
 style = st.sidebar.radio(
     "투자 성향", ["aggressive", "stable", "dividend"], horizontal=True
 )
-fav_list = load_favorites()
 
-# 데이터 준비
 raw_df = load_filtered_data()
 if not isinstance(raw_df, pd.DataFrame) or raw_df.empty:
     st.error("데이터를 불러올 수 없습니다.")
@@ -69,44 +66,29 @@ if not isinstance(raw_df, pd.DataFrame) or raw_df.empty:
 
 scored_df = finalize_scores(raw_df, style=style)
 scored_df["신뢰등급"] = scored_df.apply(assess_reliability, axis=1)
+all_candidates = scored_df["종목명"].tolist()
 top10 = scored_df.sort_values("score", ascending=False).head(10)
 
-# ------------------ 종목 선택 (우선순위) ------------------
-selected = None
-code = None
-
+# -- 사이드바 즐겨찾기 멀티셀렉트 --
 with st.sidebar:
     st.markdown("#### ⭐ 즐겨찾기")
-    fav_dropdown = st.selectbox("즐겨찾기 선택", fav_list, key="fav_dropdown") if fav_list else None
-    all_candidates = scored_df["종목명"].tolist()
-    search_val = st.text_input("종목명 직접 검색", "")
-    if search_val:
-        filtered = [x for x in all_candidates if search_val in x]
-        search_candidates = filtered if filtered else all_candidates
-    else:
-        search_candidates = all_candidates
-    search_selected = st.selectbox("전체 종목 선택", search_candidates, key="all_selectbox")
-    # 최종 선택
-    if fav_dropdown:
-        selected = fav_dropdown
-    else:
-        selected = search_selected
-    code = scored_df[scored_df["종목명"] == selected]["종목코드"].values[0]
-    is_fav = selected in fav_list
-    clicked = st.button("⭐ 즐겨찾기 추가" if not is_fav else "★ 즐겨찾기 해제", key="fav_btn2")
-    if clicked:
-        if not is_fav:
-            fav_list.append(selected)
-        else:
-            fav_list = [x for x in fav_list if x != selected]
-        save_favorites(fav_list)
+    fav_list = load_favorites()
+    fav_selected = st.multiselect("즐겨찾기 목록", all_candidates, default=fav_list, key="fav_multiselect")
+    # 저장 버튼
+    if st.button("⭐ 즐겨찾기 저장", key="fav_save"):
+        save_favorites(fav_selected)
         st.rerun()
         st.stop()
 
-# ------------------ 본문(선택 종목) ------------------
-if not selected or not code:
-    st.warning("종목을 선택해 주세요.")
-    st.stop()
+# 즐겨찾기에서 1개 이상 선택시 첫 번째 종목을 대표로 선택
+if fav_selected:
+    selected = fav_selected[0]
+else:
+    st.subheader("TOP10 종목 빠른 선택")
+    quick_selected = st.selectbox("TOP10 종목명", top10["종목명"].tolist(), key="top10_selectbox")
+    selected = quick_selected
+
+code = scored_df[scored_df["종목명"] == selected]["종목코드"].values[0]
 
 st.subheader(f"선택 종목: {selected}")
 st.subheader(f"투자 성향({style}) 통합 점수 TOP 10")
@@ -115,9 +97,9 @@ st.dataframe(top10[
 ])
 
 # 즐겨찾기 테이블
-if fav_list:
+if fav_selected:
     st.subheader("⭐ 즐겨찾기 종목")
-    st.dataframe(scored_df[scored_df["종목명"].isin(fav_list)][
+    st.dataframe(scored_df[scored_df["종목명"].isin(fav_selected)][
         ["종목명", "종목코드", "현재가", "PER", "PBR", "EPS", "BPS", "배당률", "score", "신뢰등급"]
     ])
 
@@ -257,10 +239,6 @@ else:
     except Exception:
         st.info("종목 평가/전략을 분석할 데이터가 부족합니다.")
 
-# =========================
-# 👇👇👇 개별/전체 수동갱신 버튼 👇👇👇
-# =========================
-
 if st.button(f"🔄 {selected} 데이터만 즉시 갱신"):
     from update_stock_database import update_single_stock
     result = update_single_stock(code)
@@ -280,8 +258,6 @@ if st.button("🗂️ 전체 종목 수동 갱신"):
         st.rerun()
     except Exception:
         st.error("전체 갱신 실패")
-
-# =========================
 
 st.subheader("최신 뉴스")
 news = fetch_google_news(selected)
