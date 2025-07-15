@@ -21,10 +21,10 @@ def fetch_fundamental(code):
                 'PER': float(df['PER'][-1]),
                 'PBR': float(df['PBR'][-1]),
                 'ROE': float('nan'),
-                '배당수익률': float(df['DIV'][-1])
+                '배당률': float(df['DIV'][-1])
             }
     except:
-        return {'PER': None, 'PBR': None, 'ROE': None, '배당수익률': None}
+        return {'PER': None, 'PBR': None, 'ROE': None, '배당률': None}
 
 def update_database():
     df_list = pd.read_csv("initial_krx_list.csv")
@@ -40,7 +40,7 @@ def update_database():
             "PER": fin['PER'],
             "PBR": fin['PBR'],
             "ROE": fin['ROE'],
-            "배당수익률": fin['배당수익률']
+            "배당률": fin['배당률']
         })
 
     df = pd.DataFrame(data)
