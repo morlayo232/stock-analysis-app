@@ -32,7 +32,6 @@ def fetch_fundamental(code):
     return {'PER': None, 'PBR': None, 'EPS': None, 'BPS': None, '배당률': None}
 
 def update_database():
-    # KRX 종목 리스트 읽기 (시장구분, 종목명, 종목코드 등)
     df_list = pd.read_csv("initial_krx_list.csv")
     data = []
     for _, row in df_list.iterrows():
@@ -52,8 +51,13 @@ def update_database():
         })
     df = pd.DataFrame(data)
     df = finalize_scores(df, style="aggressive")
+    cols = ["종목명", "종목코드", "현재가", "PER", "PBR", "EPS", "BPS", "배당률", "score"]
+    df = df[cols]
     df.to_csv("filtered_stocks.csv", index=False)
-    print("filtered_stocks.csv로 저장 완료!")
+    import os
+    print("== 파일 생성 여부 ==", os.path.exists("filtered_stocks.csv"))
+    print("== 현재 디렉토리 ==", os.getcwd())
+    print("== 파일 목록 ==", os.listdir("."))
 
 def update_single_stock(code):
     import streamlit as st
@@ -99,7 +103,6 @@ def update_single_stock(code):
     except Exception as e:
         st.warning(f"[개별 갱신][{code}] 경고: {e}")
         return False
-    import os
-        print("== 파일 생성 여부 ==", os.path.exists("filtered_stocks.csv"))
-        print("== 현재 디렉토리 ==", os.getcwd())
-        print("== 파일 목록 ==", os.listdir("."))
+
+if __name__ == "__main__":
+    update_database()
