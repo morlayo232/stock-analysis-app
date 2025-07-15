@@ -88,8 +88,7 @@ else:
     st.warning("해당 종목이 없습니다.")
     st.stop()
 
-# =========================
-# 🔥 여기에 최신 재무 정보 표시(그래프 위) 추가
+# 최신 재무 정보 표시 (그래프 위)
 st.subheader("📊 최신 재무 정보")
 try:
     info_row = scored_df[scored_df["종목명"] == selected].iloc[0]
@@ -102,7 +101,6 @@ try:
     col6.metric("점수", f"{info_row['score']:.3f}" if pd.notna(info_row['score']) else "-")
 except Exception:
     st.info("재무 데이터가 부족합니다.")
-# =========================
 
 start = "20240101"
 end = datetime.today().strftime("%Y%m%d")
@@ -112,7 +110,12 @@ if df_price is None or df_price.empty:
     st.warning("가격 데이터 추적 실패")
 else:
     df_price = add_tech_indicators(df_price)
+
+    # === plotly 그래프 크기 조정 ===
     fig, fig_rsi, fig_macd = plot_price_rsi_macd(df_price)
+    fig.update_layout(height=520)
+    fig_rsi.update_layout(height=300)
+    fig_macd.update_layout(height=300)
     st.plotly_chart(fig, use_container_width=True, key="main_chart")
     st.plotly_chart(fig_rsi, use_container_width=True, key="rsi_chart")
     st.plotly_chart(fig_macd, use_container_width=True, key="macd_chart")
@@ -126,12 +129,13 @@ else:
 
     st.subheader("📌 추천 매수가 / 매도가")
     required_cols = ["RSI", "MACD", "Signal", "EMA20"]
-    if (
-        any(col not in df_price.columns for col in required_cols) or
-        df_price[required_cols].isna().any().any() or
-        len(df_price) < 3
-    ):
-        st.info("기술적 지표 데이터가 부족하여 추천가를 계산할 수 없습니다.")
+    # 진단용 로그 (꼭 남겨서 체크!)
+    st.write("추천가 관련 최근 값:", df_price[required_cols + ['종가']].tail())
+
+    if not all(col in df_price.columns for col in required_cols):
+        st.info("기술적 지표 컬럼이 부족합니다.")
+    elif df_price[required_cols].tail(3).isna().any().any():
+        st.info("기술적 지표의 최근 값에 결측치가 있어 추천가를 계산할 수 없습니다.")
     else:
         try:
             price_now = df_price['종가'].iloc[-1]
@@ -166,19 +170,19 @@ else:
             col1, col2 = st.columns(2)
 
             with col1:
-                if buy_price:
+                if buy_price is not None:
                     st.metric("추천 매수가", f"{buy_price:,.0f} 원")
                 else:
                     st.metric("추천 매수가", "조건 미충족")
 
             with col2:
-                if sell_price:
+                if sell_price is not None:
                     st.metric("추천 매도가", f"{sell_price:,.0f} 원")
                 else:
                     st.metric("추천 매도가", "조건 미충족")
 
-        except Exception:
-            st.info("추천가 계산 중 오류가 발생했습니다.")
+        except Exception as e:
+            st.info(f"추천가 계산 중 오류: {e}")
 
     st.subheader("📋 종목 평가 및 투자 전략 (전문가 의견)")
     try:
