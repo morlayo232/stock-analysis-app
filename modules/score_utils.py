@@ -8,13 +8,15 @@ def finalize_scores(df, style="aggressive"):
     N = len(df)
 
     def safe_numeric(col, default=0):
-        # 없는 컬럼, None 등 모두 0 Series로
-        s = df[col] if col in df.columns else [default]*N
-        if s is None or (isinstance(s, float) and np.isnan(s)):
-            s = [default]*N
-        s = pd.Series(s, index=df.index)
-        # 문자/결측 모두 0으로
-        s = pd.to_numeric(s, errors="coerce").fillna(0)
+        if col in df.columns:
+            s = df[col]
+        else:
+            s = pd.Series([default]*N, index=df.index)
+        # None 또는 list인 경우도 Series로 강제
+        if s is None or isinstance(s, list):
+            s = pd.Series([default]*N, index=df.index)
+        # 문자/NaN 모두 0으로
+        s = pd.to_numeric(s, errors="coerce").fillna(default)
         s = s.astype(float)
         s[s < 0] = 0
         return s
