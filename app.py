@@ -7,14 +7,13 @@ sys.path.append(os.path.join(os.path.dirname(__file__), "modules"))
 import streamlit as st
 import pandas as pd
 import numpy as np
+from datetime import datetime    # ← 반드시 상단에서 import
 from update_stock_database import update_database, update_single_stock
-
 from fetch_news import fetch_google_news
 from score_utils import finalize_scores, assess_reliability
 from chart_utils import plot_price_rsi_macd
 from calculate_indicators import add_tech_indicators
 from pykrx import stock
-from datetime import datetime
 
 st.set_page_config(page_title="투자 매니저", layout="wide")
 st.title("투자 매니저")
