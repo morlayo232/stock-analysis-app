@@ -37,7 +37,7 @@ def load_filtered_data():
         df = pd.read_csv("filtered_stocks.csv")
         expected = [
             "종목명", "종목코드", "현재가",
-            "PER", "PBR", "EPS", "BPS", "배당률"
+            "PER", "PBR", "EPS", "BPS", "배당률", "score"
         ]
         for col in expected:
             if col not in df.columns:
@@ -73,13 +73,11 @@ with st.sidebar:
     st.markdown("#### ⭐ 즐겨찾기 관리")
     fav_list = load_favorites()
     fav_selected = st.multiselect("즐겨찾기 등록/해제", all_candidates, default=fav_list, key="fav_multiselect")
-    # 저장 버튼(등록/해제 반영)
     if st.button("⭐ 즐겨찾기 저장", key="fav_save"):
         save_favorites(fav_selected)
         st.rerun()
         st.stop()
     st.markdown("---")
-    # 조회 종목: 즐겨찾기 여부와 무관하게 전체 종목 중 선택 가능
     current_selected = st.selectbox("조회 종목 선택", all_candidates, key="main_selectbox")
 
 selected = current_selected
@@ -91,14 +89,12 @@ st.dataframe(top10[
     ["종목명", "종목코드", "현재가", "PER", "PBR", "EPS", "BPS", "배당률", "score", "신뢰등급"]
 ])
 
-# 즐겨찾기 테이블
 if fav_selected:
     st.subheader("⭐ 즐겨찾기 종목")
     st.dataframe(scored_df[scored_df["종목명"].isin(fav_selected)][
         ["종목명", "종목코드", "현재가", "PER", "PBR", "EPS", "BPS", "배당률", "score", "신뢰등급"]
     ])
 
-# 최신 재무 정보
 st.subheader("📊 최신 재무 정보")
 try:
     info_row = scored_df[scored_df["종목명"] == selected].iloc[0]
@@ -120,6 +116,13 @@ if df_price is None or df_price.empty:
     st.warning("가격 데이터 추적 실패")
 else:
     df_price = add_tech_indicators(df_price)
+    # 볼린저밴드 계산
+    if "종가" in df_price.columns:
+        df_price["MA20"] = df_price["종가"].rolling(window=20).mean()
+        df_price["STD20"] = df_price["종가"].rolling(window=20).std()
+        df_price["BB_low"] = df_price["MA20"] - 2*df_price["STD20"]
+        df_price["BB_high"] = df_price["MA20"] + 2*df_price["STD20"]
+
     fig, fig_rsi, fig_macd = plot_price_rsi_macd(df_price)
     fig.update_layout(height=520)
     fig_rsi.update_layout(height=300)
@@ -132,107 +135,132 @@ else:
         "- **종가/EMA(20):** 단기 추세·매매 타이밍 참고. EMA 하락돌파 후 반등, 상승돌파 후 조정 체크!\n"
         "- **골든크로스:** 상승전환 시그널, **데드크로스:** 하락전환 시그널(실전에서는 한 박자 뒤 조치 권고)\n"
         "- **RSI:** 40 아래 과매도, 60 위 과매수\n"
-        "- **MACD:** MACD가 Signal을 상향돌파(매수), 하향돌파(매도)"
+        "- **MACD:** MACD가 Signal을 상향돌파(매수), 하향돌파(매도)\n"
+        "- **볼린저밴드:** 하단 근접=반등 가능, 상단 돌파=단기 고점 가능"
     )
 
-    st.subheader("📌 추천 매수가 / 매도가")
-    required_cols = ["RSI", "MACD", "Signal", "EMA20", "종가"]
-    st.write("추천가 관련 최근 값:", df_price[required_cols].tail())
-
-    if not all(col in df_price.columns for col in required_cols):
-        st.info("기술적 지표 컬럼이 부족합니다.")
-    elif df_price[required_cols].tail(3).isna().any().any():
-        st.info("기술적 지표의 최근 값에 결측치가 있어 추천가를 계산할 수 없습니다.")
-    else:
-        window = 5
-        recent = df_price.tail(window).reset_index()
-        buy_price = None
-        sell_price = None
-        buy_date = None
-        sell_date = None
-        if '날짜' not in recent.columns:
-            recent['날짜'] = recent['index'] if 'index' in recent.columns else recent.index
+    # --------- 추천 매수/매도가 ---------
+    def get_recommended_prices(df_price):
+        window = min(len(df_price), 60)
+        recent = df_price.tail(window)
+        buy_signals, sell_signals = [], []
         for i in range(1, len(recent)):
             try:
-                rsi_now = float(recent['RSI'].iloc[i])
-                macd_now = float(recent['MACD'].iloc[i])
-                signal_now = float(recent['Signal'].iloc[i])
-                close_now = float(recent['종가'].iloc[i])
-                ema_now = float(recent['EMA20'].iloc[i])
-                rolling_std = recent['종가'].rolling(window=20).std().iloc[i] if i >= 19 else None
-                lower_band = ema_now - 2 * rolling_std if rolling_std is not None else None
-                upper_band = ema_now + 2 * rolling_std if rolling_std is not None else None
-                if ((rsi_now < 40) or (close_now < ema_now) or (macd_now > signal_now) or (lower_band is not None and close_now < lower_band)):
-                    buy_price = close_now
-                    buy_date = recent['날짜'].iloc[i]
-                if ((rsi_now > 60) or (close_now > ema_now) or (macd_now < signal_now) or (upper_band is not None and close_now > upper_band)):
-                    sell_price = close_now
-                    sell_date = recent['날짜'].iloc[i]
+                close = float(recent["종가"].iloc[i])
+                ema = float(recent["EMA20"].iloc[i]) if "EMA20" in recent else None
+                rsi = float(recent["RSI"].iloc[i]) if "RSI" in recent else None
+                macd = float(recent["MACD"].iloc[i]) if "MACD" in recent else None
+                signal = float(recent["Signal"].iloc[i]) if "Signal" in recent else None
+                bb_low = float(recent["BB_low"].iloc[i]) if "BB_low" in recent else None
+                bb_high = float(recent["BB_high"].iloc[i]) if "BB_high" in recent else None
+                buy_flag = False
+                if rsi is not None and macd is not None and signal is not None:
+                    if (rsi < 35 and macd > signal):
+                        buy_flag = True
+                if ema is not None and close < ema:
+                    buy_flag = True
+                if bb_low is not None and close < bb_low:
+                    buy_flag = True
+                if buy_flag:
+                    buy_signals.append((recent.index[i], close))
+                sell_flag = False
+                if rsi is not None and macd is not None and signal is not None:
+                    if (rsi > 65 and macd < signal):
+                        sell_flag = True
+                if ema is not None and close > ema:
+                    sell_flag = True
+                if bb_high is not None and close > bb_high:
+                    sell_flag = True
+                if sell_flag:
+                    sell_signals.append((recent.index[i], close))
             except Exception:
                 continue
-        col1, col2 = st.columns(2)
-        with col1:
-            if buy_price is not None:
-                msg = f"{buy_price:,.0f} 원"
-                if buy_date:
-                    msg += f"\n({buy_date} 신호)"
-                st.metric("추천 매수가", msg)
-            else:
-                st.metric("추천 매수가", "조건 미충족")
-        with col2:
-            if sell_price is not None:
-                msg = f"{sell_price:,.0f} 원"
-                if sell_date:
-                    msg += f"\n({sell_date} 신호)"
-                st.metric("추천 매도가", msg)
-            else:
-                st.metric("추천 매도가", "조건 미충족")
+        buy_price, buy_date, sell_price, sell_date = None, None, None, None
+        if buy_signals:
+            buy_date, buy_price = min(buy_signals, key=lambda x: x[1])
+        if sell_signals:
+            sell_date, sell_price = max(sell_signals, key=lambda x: x[1])
+        if buy_price is not None and sell_price is not None and buy_price >= sell_price:
+            buy_price, buy_date = None, None
+        return buy_price, buy_date, sell_price, sell_date
 
+    st.subheader("📌 추천 매수가 / 매도가")
+    buy_price, buy_date, sell_price, sell_date = get_recommended_prices(df_price)
+    col1, col2 = st.columns(2)
+    with col1:
+        if buy_price is not None:
+            msg = f"{buy_price:,.0f} 원"
+            if buy_date:
+                msg += f"\n({buy_date} 신호)"
+            st.metric("추천 매수가", msg)
+        else:
+            st.metric("추천 매수가", "조건 미충족")
+    with col2:
+        if sell_price is not None:
+            msg = f"{sell_price:,.0f} 원"
+            if sell_date:
+                msg += f"\n({sell_date} 신호)"
+            st.metric("추천 매도가", msg)
+        else:
+            st.metric("추천 매도가", "조건 미충족")
+
+    # --------- 종목 평가 및 투자 전략 (전문가 의견) ---------
     st.subheader("📋 종목 평가 및 투자 전략 (전문가 의견)")
     try:
         eval_lines = []
         per = scored_df.loc[scored_df["종목명"] == selected, "PER"].values[0]
         if per < 7:
-            eval_lines.append("✔️ [PER] 현 주가수익비율(PER)이 7 미만입니다. 이는 이익 대비 현재 주가가 낮게 형성돼 있다는 뜻으로, 실적 안정성이 유지된다면 저평가된 종목으로 볼 수 있습니다.")
+            eval_lines.append("✔️ [PER] 주가수익비율(PER)이 7 미만, 실적 대비 저평가 구간입니다.")
         elif per > 20:
-            eval_lines.append("⚠️ [PER] PER이 20을 초과합니다. 단기적으로 고평가 구간에 있을 수 있으므로 실적 성장 지속성, 업종 특성도 함께 체크하세요.")
+            eval_lines.append("⚠️ [PER] PER이 20 초과, 성장성 확인 필요.")
         pbr = scored_df.loc[scored_df["종목명"] == selected, "PBR"].values[0]
         if pbr < 1:
-            eval_lines.append("✔️ [PBR] PBR이 1 미만으로, 회사의 순자산보다 낮게 거래되고 있습니다.")
+            eval_lines.append("✔️ [PBR] PBR 1 미만, 순자산대비 저평가.")
         elif pbr > 2:
-            eval_lines.append("⚠️ [PBR] PBR이 2를 초과합니다.")
+            eval_lines.append("⚠️ [PBR] PBR 2 초과, 과도한 평가 가능성.")
         div = scored_df.loc[scored_df["종목명"] == selected, "배당률"].values[0]
         if div > 3:
-            eval_lines.append("💰 [배당] 배당수익률이 3%를 넘어, 배당 투자 관점에서도 긍정적입니다.")
+            eval_lines.append("💰 [배당] 배당수익률 3% 이상, 장기투자에 유리.")
         elif div < 1:
-            eval_lines.append("💡 [배당] 배당수익률이 1% 미만으로 낮은 편입니다.")
+            eval_lines.append("💡 [배당] 배당수익률 1% 미만, 성장/재투자 기업 가능성.")
         eps = scored_df.loc[scored_df["종목명"] == selected, "EPS"].values[0]
         if eps > 0:
-            eval_lines.append("🟢 [EPS] 최근 분기 흑자 유지, 재무적으로 견조합니다.")
+            eval_lines.append("🟢 [EPS] 최근 분기 흑자, 재무 건전.")
         else:
-            eval_lines.append("🔴 [EPS] 최근 분기 적자, 단기적 재무 구조점검 필요.")
+            eval_lines.append("🔴 [EPS] 최근 분기 적자, 구조 점검 필요.")
         bps = scored_df.loc[scored_df["종목명"] == selected, "BPS"].values[0]
         if bps > 0:
-            eval_lines.append("🟢 [BPS] 자산가치 기반으로도 안정적입니다.")
+            eval_lines.append("🟢 [BPS] 자산가치 기준 안정적.")
+        # ---- 추가 지표 코멘트 ----
         if "RSI" in df_price.columns and not np.isnan(df_price['RSI'].iloc[-1]):
             rsi_now = df_price['RSI'].iloc[-1]
-            if rsi_now < 40:
-                eval_lines.append("📉 [RSI] 단기 과매도 상태입니다. 조정 후 반등 가능성 체크 필요.")
-            elif rsi_now > 60:
-                eval_lines.append("📈 [RSI] 단기 과매수 구간입니다. 단기 차익 실현 구간일 수 있습니다.")
+            if rsi_now < 35:
+                eval_lines.append("📉 [RSI] 단기 과매도, 반등 가능성.")
+            elif rsi_now > 65:
+                eval_lines.append("📈 [RSI] 단기 과매수, 차익실현 타이밍.")
+        if "EMA20" in df_price.columns and not np.isnan(df_price['EMA20'].iloc[-1]):
+            if df_price['종가'].iloc[-1] > df_price['EMA20'].iloc[-1]:
+                eval_lines.append("🔹 [EMA20] 주가가 단기이평선(EMA20) 위, 상승 모멘텀.")
+            else:
+                eval_lines.append("🔸 [EMA20] 주가가 단기이평선 아래, 조정 구간.")
+        if "BB_low" in df_price.columns and "종가" in df_price.columns:
+            if df_price['종가'].iloc[-1] < df_price['BB_low'].iloc[-1]:
+                eval_lines.append("⚡ [볼린저밴드] 주가가 밴드 하단 하회, 단기 반등 구간.")
+            elif df_price['종가'].iloc[-1] > df_price['BB_high'].iloc[-1]:
+                eval_lines.append("🔥 [볼린저밴드] 주가가 밴드 상단 돌파, 단기 급등/고점 신호.")
         score = scored_df.loc[scored_df["종목명"] == selected, "score"].values[0]
         q80 = scored_df["score"].quantile(0.8)
         q20 = scored_df["score"].quantile(0.2)
         if score > q80:
-            eval_lines.append("✅ [종합 진단] 전문가 의견: 현재 투자 매력도가 매우 높은 편입니다. 성장성, 수익성, 안정성 지표 모두 양호하므로 적극적 매수 또는 분할 매수 전략을 고려해볼 만합니다.")
+            eval_lines.append("✅ [종합 진단] 투자매력도 상위. 적극적 매수 고려.")
         elif score < q20:
-            eval_lines.append("❌ [종합 진단] 전문가 의견: 투자 매력도가 낮은 구간입니다. 추가 모니터링 또는 조정 후 진입을 권장합니다.")
+            eval_lines.append("❌ [종합 진단] 투자매력 낮음. 추가 모니터링 권장.")
         else:
-            eval_lines.append("☑️ [종합 진단] 전문가 의견: 시장 평균 수준. 가격 조정 시 분할 매수, 장기 투자 전략이 적합합니다.")
+            eval_lines.append("☑️ [종합 진단] 평균 수준. 분할매수, 장기투자 전략 적합.")
         for line in eval_lines:
             st.markdown(f"- {line}")
     except Exception:
-        st.info("종목 평가/전략을 분석할 데이터가 부족합니다.")
+        st.info("종목 평가/전략 분석 데이터 부족.")
 
 if st.button(f"🔄 {selected} 데이터만 즉시 갱신"):
     from update_stock_database import update_single_stock
