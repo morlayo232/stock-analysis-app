@@ -73,20 +73,29 @@ st.dataframe(top10[
 st.subheader("🔥 급등 예상 종목 TOP 10 (KRX 기반, 점수 가중반영)")
 if "급등점수" in scored_df.columns:
     top10_jump = scored_df.sort_values("급등점수", ascending=False).head(10)
+    # 급등 Top10 빠른 선택
+    st.markdown("**급등 TOP10 빠른 선택**")
+    quick_jump_selected = st.selectbox(
+        "급등예상 TOP10 종목명", top10_jump["종목명"].tolist(), key="jump_top10_selectbox"
+    )
     st.dataframe(top10_jump[
         ["종목명", "종목코드", "현재가", "등락률", "거래량", "거래량급증", "최고가갱신", "급등점수", "score"]
     ])
     st.caption("※ 거래량 급증, 신고가, 등락률 등 복합 급등 시그널과 투자점수 가중 반영 추천")
 else:
+    quick_jump_selected = None
     st.warning("급등 신호 데이터 없음 (DB 재갱신 필요)")
 
-# 아래 종목 검색
+# === 종목 검색/선택 ===
 st.subheader("종목 검색")
 keyword = st.text_input("종목명을 입력하세요")
 
 if keyword:
     filtered = scored_df[scored_df["종목명"].str.contains(keyword, case=False, na=False)]
     select_candidates = filtered["종목명"].tolist()
+    default_index = 0
+elif quick_jump_selected:  # 급등 Top10 selectbox에서 선택된 경우
+    select_candidates = [quick_jump_selected]
     default_index = 0
 elif quick_selected:
     select_candidates = [quick_selected]
@@ -274,3 +283,8 @@ if news:
         st.markdown(f"- {n}")
 else:
     st.info("뉴스 정보 없음")
+
+# 로고 중간~아래 삽입
+st.markdown("---")
+st.image("logo_tynex.png", width=220)
+st.markdown("---")
