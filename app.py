@@ -19,7 +19,6 @@ from datetime import datetime
 st.set_page_config(page_title="투자 매니저", layout="wide")
 st.title("투자 매니저")
 
-@st.cache_data
 def load_filtered_data():
     try:
         df = pd.read_csv("filtered_stocks.csv")
@@ -275,4 +274,9 @@ else:
 # 로고 중앙정렬, 크기 축소
 st.markdown(
     """
-    <div style="display: flex;
+    <div style="display: flex; justify-content: center; align-items: center;">
+        <img src="logo_tynex.png" width="120">
+    </div>
+    """,
+    unsafe_allow_html=True,
+)
