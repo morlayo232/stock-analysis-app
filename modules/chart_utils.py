@@ -35,4 +35,7 @@ def plot_price_rsi_macd(df):
         fig_macd.add_trace(go.Scatter(x=x, y=df['Signal'], mode='lines', name='Signal', line=dict(color='orange')))
         fig_macd.update_layout(height=220, margin=dict(t=30, b=30))
 
-    return fig, fig_rsi, fig_macd
+        return fig, fig_rsi, fig_macd
+    
+    except Exception as e:
+        return None, None, None
