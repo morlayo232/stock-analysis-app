@@ -4,14 +4,21 @@ import numpy as np
 import pandas as pd
 
 def finalize_scores(df, style="aggressive"):
-    # 기존 지표에 거래량, 볼린저, 신호 등 가중치 추가 예시
     df = df.copy()
+    # "거래량" 결측·음수·문자 예외처리
+    if "거래량" in df.columns:
+        거래량 = pd.to_numeric(df["거래량"], errors="coerce").fillna(0)
+        거래량[거래량 < 0] = 0
+        거래량_log = np.log1p(거래량)
+    else:
+        거래량_log = 0
+
     df["score"] = (
-        -0.1 * df["PER"].astype(float)
-        -0.2 * df["PBR"].astype(float)
-        +0.2 * df["EPS"].astype(float) / (df["BPS"].astype(float)+1)
-        +0.05 * df["배당률"].astype(float)
-        +0.1 * np.log1p(df.get("거래량", 0))
+        -0.1 * pd.to_numeric(df.get("PER", 0), errors="coerce").fillna(0)
+        -0.2 * pd.to_numeric(df.get("PBR", 0), errors="coerce").fillna(0)
+        +0.2 * pd.to_numeric(df.get("EPS", 0), errors="coerce").fillna(0) / (pd.to_numeric(df.get("BPS", 1), errors="coerce").fillna(1) + 1)
+        +0.05 * pd.to_numeric(df.get("배당률", 0), errors="coerce").fillna(0)
+        +0.1 * 거래량_log
     )
     return df
 
