@@ -1,17 +1,18 @@
 # app.py
 
+import sys
+import os
+sys.path.append(os.path.abspath("modules"))  # 이 라인은 반드시 import문 전에!
+
 import streamlit as st
 import pandas as pd
 import numpy as np
-import sys
-import os
-sys.path.append(os.path.abspath("modules"))
 
 from fetch_news import fetch_google_news
 from score_utils import finalize_scores, assess_reliability
 from chart_utils import plot_price_rsi_macd
 from calculate_indicators import add_tech_indicators
-# ... 나머지 코드 ...
+# ...
 
 # 1. 전체 종목리스트 불러오기 (예: initial_krx_list.csv)
 df_list = pd.read_csv("initial_krx_list.csv")  # 컬럼: 종목코드, 종목명, 시장구분 등
