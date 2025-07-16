@@ -8,17 +8,15 @@ def finalize_scores(df, style="aggressive"):
     N = len(df)
 
     def safe_numeric(col, default=0):
-        # 없는 컬럼 → 0, None, '' 모두 0으로
         if col in df.columns:
-            s = pd.to_numeric(df[col], errors="coerce")
-            # None → 0
-            s = s.fillna(default)
-            # 무한대/음수도 0으로
+            s = pd.to_numeric(df[col], errors="coerce").fillna(default)
             s = s.replace([np.inf, -np.inf], 0)
             s = s.mask(s < 0, 0)
+            # 마지막에 astype(float) 강제
+            s = s.astype(float)
             return s
         else:
-            return pd.Series([default]*N, index=df.index)
+            return pd.Series([default]*N, index=df.index, dtype=float)
 
     PER = safe_numeric("PER")
     PBR = safe_numeric("PBR")
@@ -27,7 +25,9 @@ def finalize_scores(df, style="aggressive"):
     배당률 = safe_numeric("배당률")
 
     거래량 = safe_numeric("거래량")
-    거래량_log = np.log1p(거래량)
+    # 이상치 있으면 모두 0, float64로 고정
+    거래량_valid = 거래량.where(거래량.notnull() & (거래량 >= 0), 0).astype(float)
+    거래량_log = np.log1p(거래량_valid)
 
     df["score"] = (
         -0.1 * PER
