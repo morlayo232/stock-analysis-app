@@ -10,10 +10,10 @@ def fetch_price(code):
     try:
         df = stock.get_market_ohlcv_by_date(today, today, code)
         if not df.empty:
-            return int(df['종가'][-1])
+            return int(df['종가'][-1]), int(df['거래량'][-1])
     except Exception:
         pass
-    return None
+    return None, None
 
 def fetch_fundamental(code):
     today = datetime.today().strftime("%Y%m%d")
@@ -33,76 +33,51 @@ def fetch_fundamental(code):
 
 def update_database():
     df_list = pd.read_csv("initial_krx_list.csv")
+    n = len(df_list)
     data = []
-    for _, row in df_list.iterrows():
+    for i, row in df_list.iterrows():
         name = row['종목명']
         code = str(row['종목코드']).zfill(6)
-        price = fetch_price(code)
+        price, volume = fetch_price(code)
         fin = fetch_fundamental(code)
         data.append({
             "종목명": name,
             "종목코드": code,
             "현재가": price,
+            "거래량": volume,
             "PER": fin["PER"],
             "PBR": fin["PBR"],
             "EPS": fin["EPS"],
             "BPS": fin["BPS"],
             "배당률": fin["배당률"]
         })
+        # 진행률 표시
+        if (i+1) % max(1, n//20) == 0 or (i+1) == n:
+            progress = (i+1) / n * 100
+            print(f"[DB Update] 진행률: {progress:.1f}% ({i+1}/{n})")
     df = pd.DataFrame(data)
     df = finalize_scores(df, style="aggressive")
-    cols = ["종목명", "종목코드", "현재가", "PER", "PBR", "EPS", "BPS", "배당률", "score"]
+    # 거래량평균/급등 등 컬럼 추가
+    df["거래량평균20"] = df["거래량"].rolling(window=20).mean()
+    df["거래량평균60"] = df["거래량"].rolling(window=60).mean()
+    df["거래량급증"] = (df["거래량"] > 2.5 * df["거래량평균20"])
+    # 등락률
+    df["등락률"] = (df["현재가"] - df["현재가"].shift(1)) / df["현재가"].shift(1) * 100
+    # 최고가20
+    df["최고가20"] = df["현재가"].rolling(window=20).max()
+    df["최고가갱신"] = (df["현재가"] >= df["최고가20"])
+    # 급등점수(비중: 거래량급증 0.4, 신고가갱신 0.3, 등락률>7 0.2, score상위 0.1)
+    df["급등점수"] = (
+        df["거래량급증"].astype(int) * 0.4 +
+        df["최고가갱신"].astype(int) * 0.3 +
+        (df["등락률"] > 7).astype(int) * 0.2 +
+        (df["score"] > df["score"].quantile(0.7)).astype(int) * 0.1
+    )
+    cols = ["종목명", "종목코드", "현재가", "거래량", "거래량평균20", "거래량평균60",
+            "거래량급증", "최고가20", "최고가갱신", "등락률", "PER", "PBR", "EPS", "BPS", "배당률", "score", "급등점수"]
     df = df[cols]
     df.to_csv("filtered_stocks.csv", index=False)
-    import os
-    print("== 파일 생성 여부 ==", os.path.exists("filtered_stocks.csv"))
-    print("== 현재 디렉토리 ==", os.getcwd())
-    print("== 파일 목록 ==", os.listdir("."))
-
-def update_single_stock(code):
-    import streamlit as st
-    import pandas as pd
-    from pykrx import stock
-    from datetime import datetime, timedelta
-    from modules.calculate_indicators import add_tech_indicators
-
-    st.write("===== [갱신 시작] =====")
-    st.write("입력 code:", code)
-    df = pd.read_csv("filtered_stocks.csv", dtype={'종목코드': str})
-    code = str(code).zfill(6)
-    row_idx = df[df['종목코드'] == code].index
-    if len(row_idx) == 0:
-        st.error(f"[개별 갱신][{code}] filtered_stocks.csv에 해당 종목코드 없음")
-        return False
-    idx = int(row_idx[0])
-    try:
-        today = datetime.today()
-        start = (today - timedelta(days=365)).strftime("%Y%m%d")
-        end = today.strftime("%Y%m%d")
-        df_price = stock.get_market_ohlcv_by_date(start, end, code)
-        if df_price is None or df_price.empty:
-            st.error(f"[개별 갱신][{code}] 가격 데이터 없음")
-            return False
-        df_price = add_tech_indicators(df_price)
-        fund = stock.get_market_fundamental_by_date(end, end, code)
-        df.at[idx, '현재가'] = int(df_price['종가'].iloc[-1])
-        if not fund.empty:
-            for col in ['PER', 'PBR', 'EPS', 'BPS', 'DIV']:
-                if col in fund.columns:
-                    val = fund[col].iloc[-1]
-                    if col == "DIV":
-                        df.at[idx, '배당률'] = val
-                    else:
-                        df.at[idx, col] = val
-        for col in ['RSI', 'MACD', 'Signal', 'EMA20']:
-            if col in df_price.columns:
-                df.at[idx, col] = df_price[col].iloc[-1]
-        df.to_csv("filtered_stocks.csv", index=False)
-        st.success(f"[개별 갱신][{code}] 최신 데이터 및 기술지표 반영됨")
-        return True
-    except Exception as e:
-        st.warning(f"[개별 갱신][{code}] 경고: {e}")
-        return False
+    print("filtered_stocks.csv 저장 완료!")
 
 if __name__ == "__main__":
     update_database()
