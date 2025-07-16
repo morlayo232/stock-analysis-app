@@ -132,11 +132,18 @@ else:
     df_price["BB_low"] = df_price["MA20"] - 2 * df_price["STD20"]
     df_price["BB_high"] = df_price["MA20"] + 2 * df_price["STD20"]
 
+    # ... (상단 생략)
+
+# df_price를 생성한 후
+try:
     fig, fig_rsi, fig_macd = plot_price_rsi_macd(df_price)
     st.plotly_chart(fig, use_container_width=True, key="main_chart")
     st.plotly_chart(fig_rsi, use_container_width=True, key="rsi_chart")
     st.plotly_chart(fig_macd, use_container_width=True, key="macd_chart")
+except Exception as e:
+    st.error(f"차트 생성 중 오류: {e}")
 
+# ... (하단 생략)
     st.info(
         "- **종가/EMA(20):** 단기 추세와 매매 타이밍 참고\n"
         "- **볼린저밴드:** 주가가 상단선 돌파시 과열, 하단선 이탈시 과매도·반등 신호로 해석\n"
