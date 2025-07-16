@@ -22,8 +22,21 @@ def update_database():
         except Exception as e:
             print(f"[전체 갱신][{code}] 오류: {e}")
     df.to_csv("filtered_stocks.csv", index=False)
+# update_stock_database.py
 def update_single_stock(code):
+    # 예시: 개별 종목만 갱신하는 코드 (원하는 동작 삽입)
     import pandas as pd
-    from pykrx import stock
-    from modules.score_utils import finalize_scores
-    # (코드 생략: code로 종목 1개만 갱신)
+    from modules.fetch_price import fetch_price
+    df = pd.read_csv("filtered_stocks.csv", dtype={'종목코드': str})
+    code = str(code).zfill(6)
+    row_idx = df[df['종목코드'] == code].index
+    if len(row_idx) == 0:
+        print("해당 코드 없음")
+        return
+    idx = int(row_idx[0])
+    price_df = fetch_price(code)
+    if not price_df.empty:
+        for col in ['현재가', 'PER', 'PBR', 'EPS', 'BPS', '배당률']:
+            if col in price_df.columns:
+                df.at[idx, col] = price_df[col].iloc[-1]
+        df.to_csv("filtered_stocks.csv", index=False)
