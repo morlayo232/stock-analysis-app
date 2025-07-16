@@ -1,4 +1,16 @@
-# modules/score_utils.py
+# modules/score_utils.pyTypeError: This app has encountered an error. The original error message is redacted to prevent data leaks. Full error details have been recorded in the logs (if you're on Streamlit Cloud, click on 'Manage app' in the lower right of your app).
+
+Traceback:
+
+File "/mount/src/stock-analysis-app/app.py", line 32, in <module> scored_df = finalize_scores(raw_df)
+
+File "/mount/src/stock-analysis-app/modules/score_utils.py", line 14, in finalize_scores s = pd.Series([default]*N, index=df.index) ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+File "/home/adminuser/venv/lib/python3.13/site-packages/pandas/core/generic.py", line 2190, in __array_ufunc__ return arraylike.array_ufunc(self, ufunc, method, *inputs, **kwargs) ~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+File "/home/adminuser/venv/lib/python3.13/site-packages/pandas/core/arraylike.py", line 399, in array_ufunc result = getattr(ufunc, method)(*inputs, **kwargs)
+
+
 
 import numpy as np
 import pandas as pd
