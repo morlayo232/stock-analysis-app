@@ -1,3 +1,5 @@
+# fetch_news.py
+
 import feedparser
 
 def fetch_google_news(query, max_items=5):
