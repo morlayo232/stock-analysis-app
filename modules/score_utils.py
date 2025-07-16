@@ -8,17 +8,15 @@ def finalize_scores(df, style="aggressive"):
     N = len(df)
 
     def safe_numeric(col, default=0):
-        # 없는 컬럼 → 0
-        s = df[col] if col in df.columns else pd.Series([default]*N, index=df.index)
-        # 문자열/None/NaN 모두 0으로 변환
-        s = pd.to_numeric(s, errors="coerce")
-        s = s.fillna(0)
-        try:
-            # 음수만 0으로 대체(에러시 무시)
-            s[s < 0] = 0
-        except Exception:
-            s = s.apply(lambda x: 0 if (not pd.isnull(x) and x < 0) else x)
+        # 없는 컬럼, None 등 모두 0 Series로
+        s = df[col] if col in df.columns else [default]*N
+        if s is None or (isinstance(s, float) and np.isnan(s)):
+            s = [default]*N
+        s = pd.Series(s, index=df.index)
+        # 문자/결측 모두 0으로
+        s = pd.to_numeric(s, errors="coerce").fillna(0)
         s = s.astype(float)
+        s[s < 0] = 0
         return s
 
     PER = safe_numeric("PER")
