@@ -15,8 +15,6 @@ from modules.chart_utils import plot_price_rsi_macd
 from modules.calculate_indicators import add_tech_indicators
 from pykrx import stock
 
-# 이하 동일
-
 st.set_page_config(page_title="투자 매니저", layout="wide")
 st.title("투자 매니저")
 
@@ -25,8 +23,8 @@ def load_filtered_data():
     try:
         df = pd.read_csv("filtered_stocks.csv")
         expected = [
-            "종목명", "종목코드", "현재가",
-            "PER", "PBR", "EPS", "BPS", "배당률"
+            "종목명", "종목코드", "현재가", "거래량", "거래량평균20", "거래량평균60", "거래량급증",
+            "최고가20", "최고가갱신", "등락률", "PER", "PBR", "EPS", "BPS", "배당률", "score", "급등점수"
         ]
         for col in expected:
             if col not in df.columns:
@@ -65,10 +63,22 @@ top10 = scored_df.sort_values("score", ascending=False).head(10)
 st.subheader("TOP10 종목 빠른 선택")
 quick_selected = st.selectbox("TOP10 종목명", top10["종목명"].tolist(), key="top10_selectbox")
 
+# === 투자점수 TOP10 ===
 st.subheader(f"투자 성향({style}) 통합 점수 TOP 10")
 st.dataframe(top10[
     ["종목명", "종목코드", "현재가", "PER", "PBR", "EPS", "BPS", "배당률", "score", "신뢰등급"]
 ])
+
+# === 급등예상 TOP10 ===
+st.subheader("🔥 급등 예상 종목 TOP 10 (KRX 기반, 점수 가중반영)")
+if "급등점수" in scored_df.columns:
+    top10_jump = scored_df.sort_values("급등점수", ascending=False).head(10)
+    st.dataframe(top10_jump[
+        ["종목명", "종목코드", "현재가", "등락률", "거래량", "거래량급증", "최고가갱신", "급등점수", "score"]
+    ])
+    st.caption("※ 거래량 급증, 신고가, 등락률 등 복합 급등 시그널과 투자점수 가중 반영 추천")
+else:
+    st.warning("급등 신호 데이터 없음 (DB 재갱신 필요)")
 
 # 아래 종목 검색
 st.subheader("종목 검색")
@@ -114,7 +124,6 @@ if df_price is None or df_price.empty:
     st.warning("가격 데이터 추적 실패")
 else:
     df_price = add_tech_indicators(df_price)
-    # 볼린저밴드 계산
     df_price["MA20"] = df_price["종가"].rolling(window=20).mean()
     df_price["STD20"] = df_price["종가"].rolling(window=20).std()
     df_price["BB_low"] = df_price["MA20"] - 2 * df_price["STD20"]
@@ -138,7 +147,6 @@ else:
     required_cols = ["RSI", "MACD", "Signal", "EMA20", "BB_low", "BB_high"]
     st.write("추천가 관련 최근 값:", df_price[required_cols + ['종가']].tail())
 
-    # 추천가 산정 (볼린저밴드 활용, 과매도/과매수 + 이탈조건)
     window = 5
     recent = df_price.tail(window).reset_index()
     buy_price = None
@@ -146,7 +154,6 @@ else:
     buy_date = None
     sell_date = None
     for i in range(1, len(recent)):
-        # 매수: 종가가 BB_low 아래, RSI < 35, MACD > Signal
         if (
             (recent['종가'].iloc[i] < recent['BB_low'].iloc[i]) and
             (recent['RSI'].iloc[i] < 35) and
@@ -154,7 +161,6 @@ else:
         ):
             buy_price = recent['종가'].iloc[i]
             buy_date = recent['날짜'].iloc[i] if '날짜' in recent.columns else recent.index[i]
-        # 매도: 종가가 BB_high 위, RSI > 65, MACD < Signal
         if (
             (recent['종가'].iloc[i] > recent['BB_high'].iloc[i]) and
             (recent['RSI'].iloc[i] > 65) and
@@ -207,7 +213,6 @@ else:
         bps = scored_df.loc[scored_df["종목명"] == selected, "BPS"].values[0]
         if bps > 0:
             eval_lines.append("🟢 [BPS] 자산가치 기반으로도 안정적.")
-        # 볼린저밴드 상태 평가
         if 'BB_low' in df_price.columns and 'BB_high' in df_price.columns:
             last_close = df_price['종가'].iloc[-1]
             last_bb_low = df_price['BB_low'].iloc[-1]
@@ -216,7 +221,6 @@ else:
                 eval_lines.append("📉 [볼린저밴드] 과매도 구간(하단선 이탈), 저점 매수 관심 구간입니다.")
             elif last_close > last_bb_high:
                 eval_lines.append("📈 [볼린저밴드] 과매수 구간(상단선 돌파), 차익실현 구간일 수 있습니다.")
-        # RSI
         if "RSI" in df_price.columns and not np.isnan(df_price['RSI'].iloc[-1]):
             rsi_now = df_price['RSI'].iloc[-1]
             if rsi_now < 35:
