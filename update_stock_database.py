@@ -22,21 +22,30 @@ def update_database():
         except Exception as e:
             print(f"[전체 갱신][{code}] 오류: {e}")
     df.to_csv("filtered_stocks.csv", index=False)
-# update_stock_database.py
+
 def update_single_stock(code):
-    # 예시: 개별 종목만 갱신하는 코드 (원하는 동작 삽입)
     import pandas as pd
     from modules.fetch_price import fetch_price
+    from modules.calculate_indicators import add_tech_indicators
+
     df = pd.read_csv("filtered_stocks.csv", dtype={'종목코드': str})
     code = str(code).zfill(6)
     row_idx = df[df['종목코드'] == code].index
     if len(row_idx) == 0:
-        print("해당 코드 없음")
+        print(f"[개별 갱신][{code}] filtered_stocks.csv에 해당 종목코드 없음")
         return
     idx = int(row_idx[0])
-    price_df = fetch_price(code)
-    if not price_df.empty:
+    try:
+        price_df = fetch_price(code)
+        if price_df is None or price_df.empty:
+            print(f"[개별 갱신][{code}] 가격 데이터 없음")
+            return
+        price_df = add_tech_indicators(price_df)
         for col in ['현재가', 'PER', 'PBR', 'EPS', 'BPS', '배당률']:
             if col in price_df.columns:
                 df.at[idx, col] = price_df[col].iloc[-1]
         df.to_csv("filtered_stocks.csv", index=False)
+        print(f"[개별 갱신][{code}] 최신 데이터 반영 완료")
+    except Exception as e:
+        print(f"[개별 갱신][{code}] 오류: {e}")
+        return
