@@ -128,17 +128,17 @@ if news:
 else:
     st.info("관련 뉴스가 없습니다.")
 
-# 11. 투자매력 TOP10, 급등 예상 TOP10
+# 11. 투자매력 TOP10, 급등예상 TOP10
 st.subheader("투자 성향별 TOP10 및 급등 예상 종목")
 col1, col2 = st.columns(2)
 with col1:
     st.markdown("**투자 매력점수 TOP10**")
-    # TODO: top10 표시 (df에서 점수 기준 상위 10개)
     st.dataframe(df.sort_values("score", ascending=False).head(10), use_container_width=True)
 with col2:
     st.markdown("**🔥 급등 예상종목 TOP10**")
-    # TODO: 급등 예측 로직 반영
-    st.dataframe(df.sort_values("거래량", ascending=False).head(10), use_container_width=True)
+    # 거래량 컬럼 없을 시 score로 대체
+    급등기준 = "거래량" if "거래량" in df.columns else "score"
+    st.dataframe(df.sort_values(급등기준, ascending=False).head(10), use_container_width=True)
 
 # 12. 하단 로고
 st.markdown("---")
