@@ -17,17 +17,11 @@ def update_database():
             for col in ['현재가', 'PER', 'PBR', 'EPS', 'BPS', '배당률']:
                 if col in price_df.columns:
                     df.at[i, col] = price_df[col].iloc[-1]
-                else:
-                    print(f"[전체 갱신][{code}] 컬럼 {col} 없음")
         except Exception as e:
             print(f"[전체 갱신][{code}] 오류: {e}")
     df.to_csv("filtered_stocks.csv", index=False)
 
 def update_single_stock(code):
-    import pandas as pd
-    from modules.fetch_price import fetch_price
-    from modules.calculate_indicators import add_tech_indicators
-
     df = pd.read_csv("filtered_stocks.csv", dtype={'종목코드': str})
     code = str(code).zfill(6)
     row_idx = df[df['종목코드'] == code].index
