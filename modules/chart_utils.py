@@ -3,7 +3,7 @@
 import plotly.graph_objs as go
 
 def plot_price_rsi_macd(df):
-    # 1. 메인 차트 (볼린저밴드 포함, 높이 조정)
+    # 1. 메인 차트 (볼린저밴드 포함, 높이 통일)
     fig = go.Figure()
     fig.add_trace(go.Scatter(
         x=df.index, y=df['종가'], name="종가", line=dict(color='#3366CC', width=2)))
@@ -34,6 +34,7 @@ def plot_price_rsi_macd(df):
         yaxis_title="가격(원)", legend_title="지표",
         template="plotly_white", height=340, width=900, font=dict(size=13)
     )
+
     # 2. RSI 차트 (높이 통일)
     fig_rsi = go.Figure()
     if 'RSI' in df:
@@ -43,4 +44,21 @@ def plot_price_rsi_macd(df):
                           line=dict(color="red", width=1, dash="dash"))
         fig_rsi.add_shape(type='line', x0=df.index[0], x1=df.index[-1], y0=30, y1=30,
                           line=dict(color="blue", width=1, dash="dash"))
-        fig_rsi.update_layout(title="RSI(14)", height=300, width=900, template="plotly_white", font=dict(size=13), yaxis=dict
+        fig_rsi.update_layout(title="RSI(14)", height=300, width=900, template="plotly_white", font=dict(size=13), yaxis=dict(range=[0, 100]))
+    else:
+        fig_rsi.update_layout(title="RSI 데이터 없음", height=300, width=900, template="plotly_white")
+
+    # 3. MACD 차트 (높이 통일)
+    fig_macd = go.Figure()
+    if 'MACD' in df and 'Signal' in df:
+        fig_macd.add_trace(go.Scatter(x=df.index, y=df['MACD'],
+                                      name="MACD", line=dict(color='#008800', width=2)))
+        fig_macd.add_trace(go.Scatter(x=df.index, y=df['Signal'],
+                                      name="Signal", line=dict(color='#FF6600', width=2)))
+        fig_macd.add_shape(type='line', x0=df.index[0], x1=df.index[-1], y0=0, y1=0,
+                           line=dict(color="black", width=1, dash="dash"))
+        fig_macd.update_layout(title="MACD & Signal", height=300, width=900, template="plotly_white", font=dict(size=13))
+    else:
+        fig_macd.update_layout(title="MACD 데이터 없음", height=300, width=900, template="plotly_white")
+
+    return fig, fig_rsi, fig_macd
