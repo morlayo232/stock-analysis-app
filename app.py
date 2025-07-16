@@ -2,61 +2,68 @@
 
 import streamlit as st
 import pandas as pd
-import numpy as np
-from update_stock_database import update_single_stock, update_database
-from modules.chart_utils import plot_price_rsi_macd, plot_bollinger_band
-from modules.fetch_news import fetch_google_news
 from modules.score_utils import finalize_scores
-from modules.fetch_price import fetch_price
+from modules.fetch_news import fetch_google_news
+from pykrx import stock
+from datetime import datetime
 
-# 헤더 및 타이틀 설정
-st.title("주식 투자 분석 도구")
+# 1. 전체 종목리스트 불러오기 (예: initial_krx_list.csv)
+df_list = pd.read_csv("initial_krx_list.csv")  # 컬럼: 종목코드, 종목명, 시장구분 등
+codes = dict(zip(df_list['종목명'], df_list['종목코드']))
 
-# 전략 선택 옵션
-strategy = st.sidebar.selectbox("투자 성향 선택", ("공격형", "안정형", "배당형"))
-st.sidebar.markdown("### 투자 성향에 맞는 전략을 선택하세요.")
-st.sidebar.info("투자 성향에 대한 간단한 설명 ❓")
+# 2. 개별 종목별 재무/주가/뉴스 일괄 수집
+def fetch_price(code):
+    today = datetime.today().strftime("%Y%m%d")
+    try:
+        df = stock.get_market_ohlcv_by_date(today, today, code)
+        if not df.empty:
+            return int(df['종가'][-1])
+    except Exception:
+        pass
+    return None
 
-# 종목 검색 및 갱신 버튼
-stock_code = st.sidebar.text_input("종목 코드 입력 (예: 005930)", "")
+def fetch_fundamental(code):
+    today = datetime.today().strftime("%Y%m%d")
+    try:
+        df = stock.get_market_fundamental_by_date(today, today, code)
+        if not df.empty:
+            return {
+                'PER': float(df['PER'][-1]),
+                'PBR': float(df['PBR'][-1]),
+                'ROE': float('nan'),  # 필요시 fetch_naver 등에서 보조 추출
+                '배당수익률': float(df['DIV'][-1])
+            }
+    except Exception:
+        pass
+    return {'PER': None, 'PBR': None, 'ROE': None, '배당수익률': None}
 
-# 데이터 갱신 버튼
-if st.sidebar.button('개별 종목 갱신'):
-    if stock_code:
-        try:
-            st.write(f"갱신 중: {stock_code}")
-            update_single_stock(stock_code)
-            st.success(f"갱신 완료: {stock_code}")
-        except Exception as e:
-            st.error(f"갱신 오류: {e}")
+st.set_page_config(page_title="투자 매니저", layout="wide")
+st.title("투자 매니저")
+
+style = st.sidebar.radio("투자 성향", ["aggressive", "stable", "dividend"], horizontal=True)
+
+data = []
+# 전체 종목 반복 (많으니 속도/트래픽 고려해 1회만 실행 또는 DB 저장 추천)
+for name, code in codes.items():
+    price = fetch_price(code)
+    fin = fetch_fundamental(code)
+    data.append({
+        "종목명": name, "종목코드": code, "현재가": price,
+        "PER": fin["PER"], "PBR": fin["PBR"], "ROE": fin["ROE"], "배당수익률": fin["배당수익률"]
+    })
+
+df = pd.DataFrame(data)
+df = finalize_scores(df, style=style)
+
+st.subheader("투자 성향별 TOP 10")
+st.dataframe(df.sort_values("score", ascending=False).head(10)[["종목명", "종목코드", "현재가", "PER", "PBR", "ROE", "배당수익률", "score"]])
+
+st.subheader("종목별 최신 뉴스 (구글 뉴스)")
+for _, row in df.sort_values("score", ascending=False).head(10).iterrows():
+    st.markdown(f"**{row['종목명']} ({row['종목코드']})**")
+    news_list = fetch_google_news(row['종목명'])
+    if news_list:
+        for n in news_list:
+            st.markdown(f"- {n}")
     else:
-        st.error("종목 코드를 입력하세요.")
-
-# 종목 선택
-selected_stock = st.selectbox("종목을 선택하세요", ["삼성전자", "LG전자", "SK하이닉스"])
-
-# 재무 정보 출력
-st.subheader(f"{selected_stock}의 재무 정보")
-df_price = fetch_price(selected_stock)  # 예시로 단순하게 선택
-
-if not df_price.empty:
-    st.write(df_price)
-
-# 차트 및 기술적 분석 출력
-st.subheader("주식 차트 & 기술적 지표")
-plot_price_rsi_macd(df_price)
-plot_bollinger_band(df_price)
-
-# 뉴스 출력
-st.subheader("최근 뉴스")
-news = fetch_google_news(selected_stock, max_items=5)
-st.write("\n".join(news))
-
-# 추천 매수/매도 가격
-st.subheader("추천 매수/매도 가격")
-score_df = finalize_scores(df_price, style=strategy)
-st.write(score_df[["종목명", "추천매수", "추천매도", "score"]])
-
-# 알림/경고
-if df_price["PER"].isna().any() or df_price["PBR"].isna().any():
-    st.warning("재무 데이터에 결측값이 있습니다. 일부 정보가 표시되지 않을 수 있습니다.")
+        st.write("뉴스 없음")
