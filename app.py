@@ -7,7 +7,7 @@ sys.path.append(os.path.join(os.path.dirname(__file__), "modules"))
 import streamlit as st
 import pandas as pd
 import numpy as np
-from datetime import datetime    # ← 반드시 상단에서 import
+from datetime import datetime
 from update_stock_database import update_database, update_single_stock
 from fetch_news import fetch_google_news
 from score_utils import finalize_scores, assess_reliability
@@ -108,14 +108,15 @@ else:
 st.subheader("📊 최신 재무 정보")
 try:
     info_row = scored_df[scored_df["종목명"] == selected].iloc[0]
-    col1, col2, col3 = st.columns(3)
-    col1.metric("PER", f"{info_row['PER']:.2f}" if pd.notna(info_row['PER']) else "-")
-    col2.metric("PBR", f"{info_row['PBR']:.2f}" if pd.notna(info_row['PBR']) else "-")
-    col3.metric("EPS", f"{int(info_row['EPS']):,}" if pd.notna(info_row['EPS']) else "-")
-    col4, col5, col6 = st.columns(3)
-    col4.metric("BPS", f"{int(info_row['BPS']):,}" if pd.notna(info_row['BPS']) else "-")
-    col5.metric("배당률(%)", f"{info_row['배당률']:.2f}" if pd.notna(info_row['배당률']) else "-")
-    col6.metric("점수", f"{info_row['score']:.3f}" if pd.notna(info_row['score']) else "-")
+    col1, col2 = st.columns(2)
+    with col1:
+        st.metric("PER", f"{info_row['PER']:.2f}" if pd.notna(info_row['PER']) else "-")
+        st.metric("EPS", f"{int(info_row['EPS']):,}" if pd.notna(info_row['EPS']) else "-")
+        st.metric("점수", f"{info_row['score']:.3f}" if pd.notna(info_row['score']) else "-")
+    with col2:
+        st.metric("PBR", f"{info_row['PBR']:.2f}" if pd.notna(info_row['PBR']) else "-")
+        st.metric("BPS", f"{int(info_row['BPS']):,}" if pd.notna(info_row['BPS']) else "-")
+        st.metric("배당률(%)", f"{info_row['배당률']:.2f}" if pd.notna(info_row['배당률']) else "-")
 except Exception:
     st.info("재무 데이터가 부족합니다.")
 
@@ -132,17 +133,17 @@ else:
     df_price["BB_low"] = df_price["MA20"] - 2 * df_price["STD20"]
     df_price["BB_high"] = df_price["MA20"] + 2 * df_price["STD20"]
 
-try:
-    fig, fig_rsi, fig_macd = plot_price_rsi_macd(df_price)
-    if fig is not None:
-        st.plotly_chart(fig, use_container_width=True)
-    if fig_rsi is not None:
-        st.plotly_chart(fig_rsi, use_container_width=True)
-    if fig_macd is not None:
-        st.plotly_chart(fig_macd, use_container_width=True)
-except Exception as e:
-    st.error(f"차트 생성 중 오류: {e}")
-    
+    try:
+        fig, fig_rsi, fig_macd = plot_price_rsi_macd(df_price)
+        if fig is not None:
+            st.plotly_chart(fig, use_container_width=True, key="main_chart")
+        if fig_rsi is not None:
+            st.plotly_chart(fig_rsi, use_container_width=True, key="rsi_chart")
+        if fig_macd is not None:
+            st.plotly_chart(fig_macd, use_container_width=True, key="macd_chart")
+    except Exception as e:
+        st.error(f"차트 생성 중 오류: {e}")
+
     st.info(
         "- **종가/EMA(20):** 단기 추세와 매매 타이밍 참고\n"
         "- **볼린저밴드:** 주가가 상단선 돌파시 과열, 하단선 이탈시 과매도·반등 신호로 해석\n"
@@ -151,6 +152,8 @@ except Exception as e:
         "- **MACD:** Signal 돌파는 매수/매도 신호, 0선 전환시 추세 반전 가능성\n"
         "※ 볼린저밴드는 가격이 밴드 밖(상단, 하단)으로 나가면 되돌림 확률이 높아집니다. 하단 돌파시 저점 매수 참고!"
     )
+
+    # 이하 기존 기능 동일...
 
     st.subheader("📌 추천 매수가 / 매도가")
     required_cols = ["RSI", "MACD", "Signal", "EMA20", "BB_low", "BB_high"]
