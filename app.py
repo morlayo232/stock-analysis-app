@@ -9,11 +9,13 @@ from datetime import datetime
 
 sys.path.append(os.path.abspath("modules"))
 
-from score_utils import finalize_scores, assess_reliability
-from fetch_news import fetch_google_news
-from chart_utils import plot_price_rsi_macd
-from calculate_indicators import add_tech_indicators
+from modules.score_utils import finalize_scores, assess_reliability
+from modules.fetch_news import fetch_google_news
+from modules.chart_utils import plot_price_rsi_macd
+from modules.calculate_indicators import add_tech_indicators
 from pykrx import stock
+
+# 이하 동일
 
 st.set_page_config(page_title="투자 매니저", layout="wide")
 st.title("투자 매니저")
