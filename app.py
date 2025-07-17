@@ -12,7 +12,6 @@ st.set_page_config(page_title="투자 매니저", layout="wide")
 # 1. 종목 검색창(자동완성)
 @st.cache_data
 def load_all_stocklist():
-    # 실제 initial_stock_list.csv 경로 필요
     if os.path.exists("initial_stock_list.csv"):
         df = pd.read_csv("initial_stock_list.csv")
         names = df["종목명"].astype(str).tolist()
@@ -28,6 +27,7 @@ st.title("투자 매니저")
 st.markdown("### 🔍 종목 검색")
 selected = st.text_input("종목명 또는 코드 입력", "", key="searchbox", help="종목명 일부만 입력해도 자동완성 지원")
 autocomplete = [o for o in options if selected in o] if selected else options
+selected_option = None
 if autocomplete:
     selected_option = st.selectbox("", autocomplete, key="autofill")
     code = code_map[selected_option]
@@ -42,11 +42,13 @@ if code:
         if st.button("🔄 개별갱신"):
             update_single_stock(code)
             st.success("개별 종목 데이터가 갱신되었습니다.")
+            st.rerun()
     with col_btn2:
         if st.button("🌐 전체갱신"):
             with st.spinner("전체 데이터 갱신중..."):
                 update_database()
                 st.success("전체 데이터 갱신 완료!")
+                st.rerun()
 
 # 2. 최신 재무정보 2열+툴팁
 st.markdown("### <img src='https://img.icons8.com/color/48/bar-chart' width='32' style='vertical-align:middle'/> 최신 재무 정보", unsafe_allow_html=True)
@@ -70,7 +72,6 @@ else:
 # 3. 주가/지표 차트
 st.markdown("### <img src='https://img.icons8.com/color/48/line-chart' width='32' style='vertical-align:middle'/> 주가 및 기술지표 차트", unsafe_allow_html=True)
 try:
-    # 예시: 실제 주가 데이터 불러오는 코드 필요
     price_file = f"price_{code}.csv"
     if os.path.exists(price_file):
         df_price = pd.read_csv(price_file)
@@ -80,13 +81,13 @@ try:
         st.plotly_chart(fig_macd, use_container_width=True)
     else:
         st.info("차트 데이터가 부족합니다.")
-except Exception as e:
+except Exception:
     st.info("차트 데이터가 부족합니다.")
 
 # 4. 추천 매수가/매도가(차트 바로 아래)
 st.markdown("### 📌 추천 매수/매도가")
-if row is not None:
-    st.info("추천가 산출을 위한 데이터가 부족합니다." if "추천매수가" not in row else f"추천 매수가: {row['추천매수가']}, 추천 매도가: {row['추천매도가']}")
+if row is not None and "추천매수가" in row and "추천매도가" in row:
+    st.write(f"추천 매수가: {row['추천매수가']}, 추천 매도가: {row['추천매도가']}")
 else:
     st.info("추천가 산출을 위한 데이터가 부족합니다.")
 
@@ -95,11 +96,13 @@ st.markdown("### 📋 종목 평가 / 투자 전략")
 if row is not None:
     advices = []
     if row["PER"] > 15:
-        advices.append("PER이 높아 성장 기대는 있으나 고평가 구간일 수 있습니다.")
+        advices.append("PER이 높아 성장 기대는 있으나 고평가 구간일 수 있습니다. 수익률 변동에 유의하세요.")
     if row["PBR"] < 1:
-        advices.append("PBR 1 미만은 저평가 신호로 장기분할매수 가능.")
+        advices.append("PBR 1 미만은 저평가 신호로 장기분할매수, 중장기 투자가치 있음.")
     if row["배당률"] > 3:
-        advices.append("배당수익률이 높아 보수적 투자에도 적합.")
+        advices.append("배당수익률이 높아 보수적 투자에도 적합합니다.")
+    if row["급등확률"] > 0.2:
+        advices.append("단기 거래량 급증 신호, 단기 급등·급락 리스크 함께 체크.")
     if not advices:
         advices.append("☑ 시장 평균수준, 분할매수 또는 모니터링 권장")
     for adv in advices:
@@ -125,7 +128,6 @@ st.markdown("## 투자 성향별 TOP10 및 급등 예상 종목")
 style = st.selectbox("투자성향", ["aggressive", "stable", "dividend"], format_func=lambda x: {"aggressive":"공격형","stable":"안정형","dividend":"배당형"}.get(x,x))
 scored_df = finalize_scores(df_all.copy(), style=style) if not df_all.empty else pd.DataFrame()
 scored_df["신뢰등급"] = scored_df.apply(assess_reliability, axis=1) if not scored_df.empty else ""
-# 투자점수 top10
 st.subheader("투자 매력점수 TOP10")
 if not scored_df.empty:
     top10 = scored_df.sort_values("score", ascending=False).head(10)
@@ -133,7 +135,6 @@ if not scored_df.empty:
 else:
     st.info("데이터 부족")
 
-# 급등 top10
 st.subheader("🔥 급등 예상종목 TOP10")
 if not scored_df.empty and "급등확률" in scored_df.columns:
     top_jump = scored_df.sort_values("급등확률", ascending=False).head(10)
@@ -141,7 +142,6 @@ if not scored_df.empty and "급등확률" in scored_df.columns:
 else:
     st.info("데이터 부족")
 
-# 8. 점수/급등확률 공식 설명
 with st.expander("📊 투자점수·급등확률 공식/의미 설명(클릭)"):
     st.markdown("""
     - 투자점수: PER, PBR, EPS, BPS, 배당률, 거래량 등 실적·밸류·수급 반영 가중합  
@@ -150,4 +150,4 @@ with st.expander("📊 투자점수·급등확률 공식/의미 설명(클릭)")
     """)
 
 # 9. 로고(중앙, 크기 0.6배)
-st.markdown('<div style="text-align:center;"><img src="https://raw.githubusercontent.com/morlayo232/stock-analysis-app/main/logo_tynex.png" width="300"/></div>', unsafe_allow_html=True)
+st.markdown('<div style="text-align:center;"><img src="https://raw.githubusercontent.com/morlayo232/stock-analysis-app/main/logo_tynex.png" width="220"/></div>', unsafe_allow_html=True)
