@@ -12,6 +12,9 @@ FIELD_EXPLAIN = {
 }
 
 def finalize_scores(df, style="aggressive"):
+    def safe_col(col, default=0):
+        # 항상 Series로 반환 (결측/없으면 0으로 채움)
+        return df[col] if col in df.columns else pd.Series([default]*len(df), index=df.index)
     def clean(s, default=0):
         s = pd.to_numeric(s, errors="coerce").fillna(default)
         s = s.mask(s < 0, 0)
@@ -22,18 +25,20 @@ def finalize_scores(df, style="aggressive"):
         "stable":     [-0.2,-0.3,0.1,0.2,0.1,0.1],
         "dividend":   [-0.15,-0.1,0.05,0.05,0.4,0.1]
     }.get(style, [-0.3,-0.2,0.2,0.1,0.15,0.1])
+
     df["score"] = (
-        w[0]*clean(df.get("PER",0),20)
-        + w[1]*clean(df.get("PBR",0),2)
-        + w[2]*clean(df.get("EPS",0),0)/1e4
-        + w[3]*clean(df.get("BPS",0),0)/1e4
-        + w[4]*clean(df.get("배당률",0),0)
-        + w[5]*np.log1p(clean(df.get("거래량",0),0))
+        w[0]*clean(safe_col("PER", 20), 20)
+        + w[1]*clean(safe_col("PBR", 2), 2)
+        + w[2]*clean(safe_col("EPS", 0), 0)/1e4
+        + w[3]*clean(safe_col("BPS", 0), 0)/1e4
+        + w[4]*clean(safe_col("배당률", 0), 0)
+        + w[5]*np.log1p(clean(safe_col("거래량", 0), 0))
     )
-    거래량 = clean(df.get("거래량",0),0)
-    거래량평균 = clean(df.get("거래량평균20",0),max(거래량.mean(),1))
-    per = clean(df.get("PER",0),20)
-    변동성 = (clean(df.get("고가",0),0) - clean(df.get("저가",0),0)) / clean(df.get("현재가",1),1)
+
+    거래량 = clean(safe_col("거래량", 0), 0)
+    거래량평균 = clean(safe_col("거래량평균20", 0), max(거래량.mean(),1))
+    per = clean(safe_col("PER", 20), 20)
+    변동성 = (clean(safe_col("고가", 0), 0) - clean(safe_col("저가", 0), 0)) / clean(safe_col("현재가", 1), 1)
     df["급등확률"] = (
         0.4*np.clip((거래량/거래량평균)-1,0,5)
         + 0.3*(per<8)
