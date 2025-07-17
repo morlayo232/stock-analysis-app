@@ -4,7 +4,7 @@ import time
 from modules.score_utils import finalize_scores
 
 def update_database():
-    stocks = pd.read_csv("initial_stock_list.csv")
+    stocks = pd.read_csv("initial_stock_list_test.csv")
     all_data = []
     N = len(stocks)
     for i, row in stocks.iterrows():
