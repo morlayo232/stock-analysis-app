@@ -38,7 +38,10 @@ def update_database():
 
 def update_single_stock(code):
     df = pd.read_csv("filtered_stocks.csv")
-    idx = df[df["종목코드"] == str(code)].index
+    code = str(code)
+    df["종목코드"] = df["종목코드"].astype(str)
+    idx = df[df["종목코드"] == code].index
+    # 이하 동일 
     if len(idx):
         df.loc[idx, "PER"] = np.random.uniform(5,20)
         df.loc[idx, "PBR"] = np.random.uniform(0.5,3)
