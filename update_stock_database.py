@@ -8,8 +8,7 @@ def update_database():
     all_data = []
     N = len(stocks)
     for i, row in stocks.iterrows():
-        # (아래는 실제 크롤러/수집코드로 대체)
-        time.sleep(0.05)
+        time.sleep(0.1)
         data = {
             "종목명": row["종목명"],
             "종목코드": row["종목코드"],
@@ -33,14 +32,13 @@ def update_database():
 
 def update_single_stock(code):
     df = pd.read_csv("filtered_stocks.csv")
-    idx = df[df["종목코드"].astype(str)==str(code)].index
+    idx = df[df["종목코드"]==int(code)].index
     if len(idx):
         df.loc[idx, "PER"] = np.random.uniform(5,20)
         df.loc[idx, "PBR"] = np.random.uniform(0.5,3)
         df.loc[idx, "EPS"] = np.random.randint(100,50000)
         df.loc[idx, "BPS"] = np.random.randint(1000,50000)
         df.loc[idx, "배당률"] = np.random.uniform(0,5)
-        df.loc[idx, "현재가"] = np.random.randint(1000,50000)
         df.loc[idx, "거래량"] = np.random.randint(1000,100000)
         df.loc[idx, "거래량평균20"] = np.random.randint(1000,100000)
         df.loc[idx, "고가"] = np.random.randint(2000,60000)
