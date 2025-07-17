@@ -13,19 +13,14 @@ FIELD_EXPLAIN = {
 
 def finalize_scores(df, style="aggressive"):
     def clean(s, default=0):
-        # Series도, int/float도 모두 처리 (결측, 음수, 단일값)
-        if not isinstance(s, pd.Series):
-            s = pd.Series([s]*len(df), index=df.index)
         s = pd.to_numeric(s, errors="coerce").fillna(default)
         s = s.mask(s < 0, 0)
         return s
-
     w = {
         "aggressive": [-0.3,-0.2,0.2,0.1,0.15,0.1],
         "stable":     [-0.2,-0.3,0.1,0.2,0.1,0.1],
         "dividend":   [-0.15,-0.1,0.05,0.05,0.4,0.1]
     }.get(style, [-0.3,-0.2,0.2,0.1,0.15,0.1])
-
     df["score"] = (
         w[0]*clean(df.get("PER",0),20)
         + w[1]*clean(df.get("PBR",0),2)
@@ -35,15 +30,14 @@ def finalize_scores(df, style="aggressive"):
         + w[5]*np.log1p(clean(df.get("거래량",0),0))
     )
     거래량 = clean(df.get("거래량",0),0)
-    거래량평균 = clean(df.get("거래량평균20",0),max(거래량.mean() if not 거래량.empty else 1,1))
+    거래량평균 = clean(df.get("거래량평균20",0),max(거래량.mean(),1))
     per = clean(df.get("PER",0),20)
     변동성 = (clean(df.get("고가",0),0) - clean(df.get("저가",0),0)) / clean(df.get("현재가",1),1)
-    # 급등확률(0~1 구간)
     df["급등확률"] = (
         0.4*np.clip((거래량/거래량평균)-1,0,5)
         + 0.3*(per<8)
         + 0.2*변동성
-    ).clip(0,1)
+    )
     return df
 
 def assess_reliability(row):
