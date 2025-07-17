@@ -2,7 +2,7 @@ name: Daily Stock Update
 
 on:
   schedule:
-    - cron: '0 23 * * *'  # 매일 오전 8시 (KST)
+    - cron: '0 23 * * *'
   workflow_dispatch:
 
 jobs:
@@ -17,27 +17,16 @@ jobs:
           python-version: '3.10'
 
       - name: Install dependencies
-        run: |
-          pip install -r requirements.txt
+        run: pip install -r requirements.txt
 
       - name: Run stock DB update
-        run: |
-          python update_stock_database.py
-   
-      - name: List directory after update
-        run: |
-          ls -al
+        working-directory: .
+        run: python update_stock_database.py
+
       - name: Commit and push
         run: |
           git config --global user.name 'github-actions'
           git config --global user.email 'actions@github.com'
           git add filtered_stocks.csv
-          git status
           git commit -m "Daily update" || echo "Nothing to commit"
           git push
-
-      - name: Debug gitignore and status
-        run: |
-          cat .gitignore || true
-          git status
-          ls -al
