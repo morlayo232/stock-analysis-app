@@ -5,14 +5,15 @@ import time
 from modules.score_utils import finalize_scores
 
 def update_database():
-    stocks = pd.read_csv("initial_krx_list_test.csv")  # 파일명 맞게!
+    # input 파일명 반드시 실제 파일과 일치!
+    stocks = pd.read_csv("initial_krx_list_test.csv")
     all_data = []
     N = len(stocks)
     for i, row in stocks.iterrows():
-        time.sleep(0.1)
+        time.sleep(0.1)  # 실제 데이터 수집시 제거
         data = {
             "종목명": row["종목명"],
-            "종목코드": row["종목코드"],
+            "종목코드": str(row["종목코드"]),  # 반드시 str로 처리
             "현재가": np.random.randint(1000,50000),
             "PER": np.random.uniform(5,20),
             "PBR": np.random.uniform(0.5,3),
@@ -41,7 +42,6 @@ def update_single_stock(code):
     code = str(code)
     df["종목코드"] = df["종목코드"].astype(str)
     idx = df[df["종목코드"] == code].index
-    # 이하 동일 
     if len(idx):
         df.loc[idx, "PER"] = np.random.uniform(5,20)
         df.loc[idx, "PBR"] = np.random.uniform(0.5,3)
@@ -59,3 +59,6 @@ def update_single_stock(code):
             print("filtered_stocks.csv 생성 완료!")
         else:
             print("filtered_stocks.csv 생성 실패!")
+
+if __name__ == "__main__":
+    update_database()
