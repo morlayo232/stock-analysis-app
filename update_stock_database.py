@@ -13,7 +13,7 @@ COLUMNS = [
     "score", "급등확률", "갱신일"
 ]
 
-def initialize_filtered_stocks(initial_csv="initial_krx_list.csv", filtered_csv="filtered_stocks.csv"):
+def initialize_filtered_stocks(initial_csv="initial_krx_list_test.csv", filtered_csv="filtered_stocks.csv"):
     """
     최초 1회: initial_krx_list.csv(종목코드, 종목명, 시장구분 등) → filtered_stocks.csv 구조로 변환/생성
     """
