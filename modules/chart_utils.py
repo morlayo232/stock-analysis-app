@@ -1,5 +1,3 @@
-# modules/chart_utils.py
-
 import plotly.graph_objs as go
 
 def plot_price_rsi_macd_bb(df):
