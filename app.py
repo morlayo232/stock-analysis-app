@@ -9,7 +9,6 @@ from update_stock_database import update_database, update_single_stock
 
 st.set_page_config(page_title="투자 매니저", layout="wide")
 
-# 종목 리스트 로드 및 자동완성
 @st.cache_data
 def load_all_stocklist():
     if os.path.exists("initial_stock_list.csv"):
@@ -27,18 +26,15 @@ st.title("투자 매니저")
 st.markdown("### 🔍 종목 검색")
 selected = st.text_input("종목명 또는 코드 입력", "", key="searchbox", help="종목명 일부만 입력해도 자동완성 지원")
 autocomplete = [o for o in options if selected in o] if selected else options
-selected_option, code, name = None, "", ""
-if autocomplete and selected:
-    selected_option = st.selectbox("검색결과", autocomplete, key="autofill")
+if autocomplete:
+    selected_option = st.selectbox("", autocomplete, key="autofill")
     code = code_map[selected_option]
     name = selected_option.split(" (")[0]
-elif autocomplete:
-    selected_option = autocomplete[0]
-    code = code_map[selected_option]
-    name = selected_option.split(" (")[0]
+else:
+    code, name = "", ""
 
 if code:
-    st.markdown(f"#### ▶️ 현재 선택 종목: **{name} ({code})**")
+    st.markdown(f"## **{name} ({code})**")
     col_btn1, col_btn2 = st.columns([1, 1])
     with col_btn1:
         if st.button("🔄 개별갱신"):
@@ -49,32 +45,26 @@ if code:
             with st.spinner("전체 데이터 갱신중..."):
                 update_database()
                 st.success("전체 데이터 갱신 완료!")
-else:
-    st.info("종목명을 입력 후 선택하세요.")
 
-# 데이터 로딩
+st.markdown("### <img src='https://img.icons8.com/color/48/bar-chart' width='32' style='vertical-align:middle'/> 최신 재무 정보", unsafe_allow_html=True)
 df_all = pd.read_csv("filtered_stocks.csv") if os.path.exists("filtered_stocks.csv") else pd.DataFrame()
-row = df_all[df_all["종목코드"].astype(str) == str(code)].iloc[0] if (code and not df_all.empty and (df_all["종목코드"].astype(str) == str(code)).any()) else None
+row = df_all[df_all["종목코드"] == int(code)].iloc[0] if (code and not df_all.empty and (df_all["종목코드"] == int(code)).any()) else None
 fields = ["PER", "PBR", "EPS", "BPS", "배당률", "score", "급등확률"]
-
-# 2열 최신 재무정보 및 툴팁
-st.markdown("### 📊 최신 재무 정보")
 if row is not None:
     cols = st.columns(2)
     for i, f in enumerate(fields):
-        with cols[i % 2]:
+        with cols[i%2]:
             st.metric(
-                f"{f} <span style='font-size:13px;' title='{FIELD_EXPLAIN.get(f, '')}'>❓</span>",
+                f"{f}",
                 f"{row[f]:,.2f}" if pd.notna(row[f]) else "-",
-                help=FIELD_EXPLAIN.get(f, ""), label_visibility="visible",
+                help=FIELD_EXPLAIN.get(f, ""), label_visibility="visible", 
                 key=f"metric_{f}"
             )
-    st.caption(f"⏰ 갱신일: {row.get('갱신일','-')} / 신뢰등급: {assess_reliability(row)}")
+    st.caption(f"⏰ 갱신일: {row['갱신일']} / 신뢰등급: {assess_reliability(row)}")
 else:
     st.info("조회된 재무 데이터가 없습니다.")
 
-# 주가/지표 차트
-st.markdown("### 📈 주가 및 기술지표 차트")
+st.markdown("### <img src='https://img.icons8.com/color/48/line-chart' width='32' style='vertical-align:middle'/> 주가 및 기술지표 차트", unsafe_allow_html=True)
 try:
     price_file = f"price_{code}.csv"
     if os.path.exists(price_file):
@@ -88,14 +78,12 @@ try:
 except Exception as e:
     st.info("차트 데이터가 부족합니다.")
 
-# 추천 매수가/매도가
 st.markdown("### 📌 추천 매수/매도가")
-if row is not None and "추천매수가" in row and "추천매도가" in row:
-    st.success(f"추천 매수가: {row['추천매수가']}, 추천 매도가: {row['추천매도가']}")
+if row is not None:
+    st.info("추천가 산출을 위한 데이터가 부족합니다." if "추천매수가" not in row else f"추천 매수가: {row['추천매수가']}, 추천 매도가: {row['추천매도가']}")
 else:
     st.info("추천가 산출을 위한 데이터가 부족합니다.")
 
-# 종목평가/투자전략
 st.markdown("### 📋 종목 평가 / 투자 전략")
 if row is not None:
     advices = []
@@ -112,7 +100,6 @@ if row is not None:
 else:
     st.write("정보 부족")
 
-# 관련 뉴스
 st.markdown("### 📰 최신 뉴스")
 try:
     from modules.fetch_news import fetch_google_news
@@ -125,18 +112,17 @@ try:
 except:
     st.info("관련 뉴스 데이터가 부족합니다.")
 
-# 투자성향/급등 top10 표/선택
 st.markdown("## 투자 성향별 TOP10 및 급등 예상 종목")
 style = st.selectbox("투자성향", ["aggressive", "stable", "dividend"], format_func=lambda x: {"aggressive":"공격형","stable":"안정형","dividend":"배당형"}.get(x,x))
 scored_df = finalize_scores(df_all.copy(), style=style) if not df_all.empty else pd.DataFrame()
-if not scored_df.empty:
-    scored_df["신뢰등급"] = scored_df.apply(assess_reliability, axis=1)
+scored_df["신뢰등급"] = scored_df.apply(assess_reliability, axis=1) if not scored_df.empty else ""
 st.subheader("투자 매력점수 TOP10")
 if not scored_df.empty:
     top10 = scored_df.sort_values("score", ascending=False).head(10)
     st.dataframe(top10, use_container_width=True)
 else:
     st.info("데이터 부족")
+
 st.subheader("🔥 급등 예상종목 TOP10")
 if not scored_df.empty and "급등확률" in scored_df.columns:
     top_jump = scored_df.sort_values("급등확률", ascending=False).head(10)
@@ -151,4 +137,4 @@ with st.expander("📊 투자점수·급등확률 공식/의미 설명(클릭)")
     - 각 성향별로 가중치(공격형: 수익/수급↑, 안정형: 저PBR/PER, 배당형: 배당↑) 자동 조정  
     """)
 
-st.markdown('<div style="text-align:center;"><img src="https://raw.githubusercontent.com/morlayo232/stock-analysis-app/main/logo_tynex.png" width="250"/></div>', unsafe_allow_html=True)
+st.markdown('<div style="text-align:center;"><img src="https://raw.githubusercontent.com/morlayo232/stock-analysis-app/main/logo_tynex.png" width="300"/></div>', unsafe_allow_html=True)
