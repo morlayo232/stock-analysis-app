@@ -1,12 +1,10 @@
-# modules/score_utils.py
-
 import numpy as np
 import pandas as pd
 
 def finalize_scores(df, style="aggressive"):
     df = df.copy()
     N = len(df)
-    idx = range(N)  # 항상 0~N-1의 안전한 인덱스
+    idx = range(N)
 
     def safe_numeric(col, default=0):
         if col in df.columns:
@@ -15,11 +13,10 @@ def finalize_scores(df, style="aggressive"):
             s = pd.Series([default]*N, index=idx)
         if s is None or isinstance(s, list):
             s = pd.Series([default]*N, index=idx)
-        # 문자/NaN 모두 0으로
         s = pd.to_numeric(s, errors="coerce").fillna(default)
         s = s.astype(float)
         s[s < 0] = 0
-        return s.reset_index(drop=True)  # 인덱스 꼬임 완전방지
+        return s.reset_index(drop=True)
 
     PER = safe_numeric("PER")
     PBR = safe_numeric("PBR")
@@ -30,7 +27,6 @@ def finalize_scores(df, style="aggressive"):
 
     거래량_log = np.log1p(거래량)
 
-    # 결과도 인덱스 맞추기
     df = df.reset_index(drop=True)
     df["score"] = (
         -0.1 * PER
