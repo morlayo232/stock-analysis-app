@@ -35,3 +35,9 @@ jobs:
           git status
           git commit -m "Daily update" || echo "Nothing to commit"
           git push
+
+      - name: Debug gitignore and status
+        run: |
+          cat .gitignore || true
+          git status
+          ls -al
