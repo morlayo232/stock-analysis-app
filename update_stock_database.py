@@ -1,4 +1,4 @@
-import pandas as pd
+ㅡimport pandas as pd
 import numpy as np
 import os
 import time
@@ -75,6 +75,11 @@ print("현 디렉토리 파일 목록:", os.listdir())
 def update_single_stock(code):
     code = str(code).zfill(6)
     df = pd.read_csv("filtered_stocks.csv")
+
+    if os.path.exists("filtered_stocks.csv"):
+    print("filtered_stocks.csv 최종 생성/확인 완료!")
+else:
+    print("filtered_stocks.csv 생성실패!")
     idx = df[df["종목코드"] == code].index
     if len(idx):
         krx_data = fetch_krx_data(code)
