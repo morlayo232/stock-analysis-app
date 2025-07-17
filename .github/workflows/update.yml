@@ -23,7 +23,11 @@ jobs:
       - name: Run stock DB update
         run: |
           python update_stock_database.py
-
+   
+      - name: List directory after update
+        run: |
+          ls -al
+          
       - name: Commit and push
         run: |
           git config --global user.name 'github-actions'
