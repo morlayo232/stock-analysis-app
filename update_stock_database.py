@@ -67,6 +67,10 @@ def update_database():
         print("filtered_stocks.csv 생성 완료!")
     else:
         print("filtered_stocks.csv 생성 실패!")
+# 코드 내
+import os
+print("현재 작업 디렉토리:", os.getcwd())
+print("현 디렉토리 파일 목록:", os.listdir())
 
 def update_single_stock(code):
     code = str(code).zfill(6)
