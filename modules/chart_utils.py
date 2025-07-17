@@ -1,7 +1,7 @@
 import plotly.graph_objs as go
 
 def plot_price_rsi_macd_bb(df):
-    # 1. 메인 차트 (종가+EMA+볼린저밴드)
+    # 메인 차트 (종가+EMA+볼린저밴드)
     fig = go.Figure()
     fig.add_trace(go.Scatter(
         x=df.index, y=df['종가'], name="종가", line=dict(color='#3366CC', width=2)))
@@ -14,7 +14,7 @@ def plot_price_rsi_macd_bb(df):
         fig.add_trace(go.Scatter(
             x=df.index, y=df["BB_low"], name="볼린저밴드 하단", line=dict(color="#88AADD", width=1, dash="dash")))
     fig.update_layout(title="가격(종가)/EMA/볼린저밴드", height=350, width=900, template="plotly_white", font=dict(size=13))
-    # 2. RSI 차트
+    # RSI 차트
     fig_rsi = go.Figure()
     if "RSI" in df:
         fig_rsi.add_trace(go.Scatter(x=df.index, y=df["RSI"], name="RSI", line=dict(color="#9900CC", width=2)))
@@ -23,7 +23,7 @@ def plot_price_rsi_macd_bb(df):
         fig_rsi.update_layout(title="RSI(14)", height=220, width=900, template="plotly_white", font=dict(size=13), yaxis=dict(range=[0, 100]))
     else:
         fig_rsi.update_layout(title="RSI 데이터 없음", height=220, width=900, template="plotly_white")
-    # 3. MACD 차트
+    # MACD 차트
     fig_macd = go.Figure()
     if "MACD" in df and "Signal" in df:
         fig_macd.add_trace(go.Scatter(x=df.index, y=df["MACD"], name="MACD", line=dict(color="#008800", width=2)))
