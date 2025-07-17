@@ -10,7 +10,6 @@ def update_database():
     all_data = []
     N = len(stocks)
     for i, row in stocks.iterrows():
-        # 실제 크롤러/수집코드로 대체 (예시로 랜덤)
         time.sleep(0.1)
         data = {
             "종목명": row["종목명"],
