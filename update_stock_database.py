@@ -61,12 +61,10 @@ def update_database():
     print("\n[DEBUG] 수집 DataFrame: \n", df.head())
     df = finalize_scores(df)
     df.to_csv("filtered_stocks.csv", index=False)
-    print("filtered_stocks.csv 저장 위치:", os.path.abspath("filtered_stocks.csv"))
-    print("현재 디렉토리 파일:", os.listdir())
-    if os.path.exists("filtered_stocks.csv"):
-        print("filtered_stocks.csv 생성 완료!")
-    else:
-        print("filtered_stocks.csv 생성 실패!")
+import time
+time.sleep(0.5)  # 아주 짧게 기다려줌
+assert os.path.exists("filtered_stocks.csv"), "filtered_stocks.csv 파일 생성 실패"
+print("filtered_stocks.csv 생성 완료:", os.path.exists("filtered_stocks.csv"))
 # 코드 내
 import os
 print("현재 작업 디렉토리:", os.getcwd())
