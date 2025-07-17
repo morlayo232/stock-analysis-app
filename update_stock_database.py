@@ -1,10 +1,11 @@
 import pandas as pd
 import numpy as np
+import os
 import time
 from modules.score_utils import finalize_scores
 
 def update_database():
-    stocks = pd.read_csv("initial_stock_list_test.csv")
+    stocks = pd.read_csv("initial_krx_list_test.csv")  # 파일명 맞게!
     all_data = []
     N = len(stocks)
     for i, row in stocks.iterrows():
@@ -29,10 +30,15 @@ def update_database():
     df = pd.DataFrame(all_data)
     df = finalize_scores(df)
     df.to_csv("filtered_stocks.csv", index=False)
+    # 파일 생성 즉시 확인
+    if os.path.exists("filtered_stocks.csv"):
+        print("filtered_stocks.csv 생성 완료!")
+    else:
+        print("filtered_stocks.csv 생성 실패!")
 
 def update_single_stock(code):
     df = pd.read_csv("filtered_stocks.csv")
-    idx = df[df["종목코드"]==int(code)].index
+    idx = df[df["종목코드"] == str(code)].index
     if len(idx):
         df.loc[idx, "PER"] = np.random.uniform(5,20)
         df.loc[idx, "PBR"] = np.random.uniform(0.5,3)
@@ -46,3 +52,7 @@ def update_single_stock(code):
         df.loc[idx, "갱신일"] = pd.Timestamp.now().strftime("%Y-%m-%d %H:%M")
         df = finalize_scores(df)
         df.to_csv("filtered_stocks.csv", index=False)
+        if os.path.exists("filtered_stocks.csv"):
+            print("filtered_stocks.csv 생성 완료!")
+        else:
+            print("filtered_stocks.csv 생성 실패!")
