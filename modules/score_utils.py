@@ -2,12 +2,21 @@
 import numpy as np
 import pandas as pd
 
-# 이제 PER, PBR, EPS, BPS, 배당률 만 사용
+# — 재무 필드 및 설명(툴팁) —
 DEFAULT_FIN = ['PER', 'PBR', 'EPS', 'BPS', '배당률']
+FIELD_EXPLAIN = {
+    'PER': '주가수익비율: 주가÷주당순이익, 이익 대비 주가 수준',
+    'PBR': '주가순자산비율: 주가÷주당순자산, 자산 대비 평가',
+    'EPS': '주당순이익: 순이익÷발행주식수, 수익성 지표',
+    'BPS': '주당순자산: 자산총액÷발행주식수, 안전마진 지표',
+    '배당률': '배당수익률: 주당배당금÷주가, 현금수익 비중',
+    'score': '투자매력 점수: 재무·가치·배당 반영 가중합',
+    '급등확률': '단기 급등 예측 확률: 거래량·저PER·변동성 등 반영'
+}
 
 def safe_float(val):
     try:
-        return float(str(val).replace(",", "").replace("%", ""))
+        return float(str(val).replace(',', '').replace('%',''))
     except:
         return np.nan
 
@@ -19,21 +28,17 @@ def safe_zscore(arr):
         return np.zeros_like(a)
     return (a - m) / s
 
-def finalize_scores(df: pd.DataFrame, style="aggressive") -> pd.DataFrame:
-    # 1) 숫자 변환
+def finalize_scores(df: pd.DataFrame, style: str = "aggressive") -> pd.DataFrame:
+    # 1) 컬럼 숫자변환
     for col in DEFAULT_FIN:
-        if col in df.columns:
-            df[col] = df[col].apply(safe_float)
-        else:
-            df[col] = np.nan
+        df[col] = df.get(col, np.nan).apply(safe_float)
 
     # 2) z-score 생성
     for col in DEFAULT_FIN:
         df[f'z_{col}'] = safe_zscore(df[col])
 
-    # 3) 스타일별 가중합 (예시 가중치 — 필요시 조정)
+    # 3) 스타일별 가중합
     if style == "aggressive":
-        # 공격형: 수익(EPS), 가치(PER,PBR), 배당은 소폭
         score = (
               df['z_EPS'] * 0.4
             - df['z_PER'] * 0.2
@@ -41,7 +46,6 @@ def finalize_scores(df: pd.DataFrame, style="aggressive") -> pd.DataFrame:
             + df['z_배당률'] * 0.2
         )
     elif style == "stable":
-        # 안정형: 가치 지표 비중 ↑
         score = (
               df['z_EPS'] * 0.2
             - df['z_PER'] * 0.3
@@ -49,7 +53,6 @@ def finalize_scores(df: pd.DataFrame, style="aggressive") -> pd.DataFrame:
             + df['z_배당률'] * 0.2
         )
     elif style == "dividend":
-        # 배당형: 배당률 최우선
         score = (
               df['z_배당률'] * 0.6
             - df['z_PBR'] * 0.2
@@ -58,6 +61,21 @@ def finalize_scores(df: pd.DataFrame, style="aggressive") -> pd.DataFrame:
     else:
         score = np.zeros(len(df))
 
-    # 4) NaN → 0
+    # 4) NaN → 0, 컬럼 추가
     df['score'] = np.where(np.isnan(score), 0, score)
     return df
+
+def assess_reliability(row: pd.Series) -> str:
+    """
+    A/B/C 등급을 간단히 매깁니다.
+    - A: 주요 재무지표 4개 이상(NA 1개 이하) 존재
+    - B: NA 2~3개
+    - C: NA 4개 이상
+    """
+    na_count = sum(pd.isna(row.get(c)) for c in DEFAULT_FIN)
+    if na_count <= 1:
+        return 'A'
+    elif na_count <= 3:
+        return 'B'
+    else:
+        return 'C'
