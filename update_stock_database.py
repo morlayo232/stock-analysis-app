@@ -92,4 +92,3 @@ def update_single_stock(code):
     except Exception as e:
         st.error(f"[개별 갱신][{code}] 오류: {e}")
         raise
-``
