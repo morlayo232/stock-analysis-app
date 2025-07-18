@@ -1,84 +1,69 @@
 import numpy as np
 import pandas as pd
 
-# KRX에서 제공되는 주요 재무지표
-DEFAULT_FIN = ['PER', 'PBR', '배당수익률']
+# KRX에서 가져올 수 있는 지표만 사용하며, ROE는 취득 불가로 제외했습니다.
+DEFAULT_FIELDS = ['PER', 'PBR', 'EPS', 'BPS', '배당률', '거래량', '거래량평균20', '고가', '저가']
 
-def safe_float(val):
-    """문자열 포함 숫자 → float, 실패 시 NaN"""
-    try:
-        return float(str(val).replace(",", "").replace("%", ""))
-    except:
-        return np.nan
+def clean_series(s, default=0.0):
+    """숫자로 변환, 음수 및 NaN을 default로 대체"""
+    return pd.to_numeric(s, errors='coerce').fillna(default).clip(lower=0)
 
-def safe_zscore(arr: pd.Series):
-    """Z-스코어 표준화 (NaN 제외), 분산 0일 땐 0 반환"""
-    a = np.array(arr, dtype=float)
-    m, s = np.nanmean(a), np.nanstd(a)
-    if s == 0 or np.isnan(s):
-        return np.zeros_like(a)
-    return (a - m) / s
-
-def finalize_scores(df: pd.DataFrame, style: str = "aggressive") -> pd.DataFrame:
+def finalize_scores(df: pd.DataFrame, style: str = 'aggressive') -> pd.DataFrame:
     """
-    df에 'PER','PBR','배당수익률','거래량','고가','저가' 컬럼이 있어야 함.
-    style: aggressive / stable / dividend
+    - df에 반드시: PER, PBR, EPS, BPS, 배당률, 거래량, 거래량평균20, 고가, 저가 컬럼 있어야 합니다.
+    - style: 'aggressive', 'stable', 'dividend' 중 선택
     """
-    # 재무데이터 정제
-    for col in DEFAULT_FIN:
-        if col in df:
-            df[col] = df[col].apply(safe_float)
-        else:
-            df[col] = np.nan
+    # 1) 기본 클린업
+    for f in DEFAULT_FIELDS:
+        df[f] = clean_series(df.get(f, default=0.0))
 
-    # Z-스코어 추가
-    for col in DEFAULT_FIN:
-        df[f'z_{col}'] = safe_zscore(df[col])
+    # 2) 투자매력 점수 계산 (금융권 실제 가중치 참고 예시)
+    weights = {
+        'aggressive': {'PER': -0.3, 'PBR': -0.2, 'EPS': 0.25, 'BPS': 0.15, '배당률': 0.05, '거래량': 0.05},
+        'stable':     {'PER': -0.25,'PBR': -0.25,'EPS': 0.15, 'BPS': 0.15, '배당률': 0.15, '거래량': 0.05},
+        'dividend':   {'PER': -0.1, 'PBR': -0.1, 'EPS': 0.1,  'BPS': 0.1,  '배당률': 0.5,  '거래량': 0.1},
+    }[style]
 
-    # 거래량, 변동성 정제
-    df['거래량'] = df.get('거래량', 0).apply(lambda x: safe_float(x))
-    df['거래량평균20'] = df.get('거래량평균20', df['거래량']).apply(lambda x: safe_float(x))
-    # 단기변동성 = (고가-저가)/종가
-    df['고가'] = df.get('고가', 0).apply(lambda x: safe_float(x))
-    df['저가'] = df.get('저가', 0).apply(lambda x: safe_float(x))
-    df['현재가'] = df.get('현재가', 1).apply(lambda x: safe_float(x))
-    vol = (df['고가'] - df['저가']) / df['현재가']
-
-    # 기본 가중치 (재무 + 수급 반영)
-    w = {
-        "aggressive": [-0.25, -0.25, +0.15, +0.30],  # (PER, PBR, 배당률, 거래량 모멘텀)
-        "stable":     [-0.30, -0.40, +0.10, +0.20],
-        "dividend":   [-0.10, -0.20, +0.70, +0.20],
-    }.get(style, [-0.25, -0.25, +0.15, +0.30])
-
-    mom = np.log1p(df['거래량'] / df['거래량평균20'])  # 거래량 모멘텀
-
-    # 투자매력점수 계산
-    score = (
-        w[0] * df['z_PER'] +
-        w[1] * df['z_PBR'] +
-        w[2] * df['z_배당수익률'] +
-        w[3] * mom
+    df['score'] = (
+        weights['PER'] * df['PER'] +
+        weights['PBR'] * df['PBR'] +
+        weights['EPS'] * (df['EPS'] / 1e4) +
+        weights['BPS'] * (df['BPS'] / 1e4) +
+        weights['배당률'] * df['배당률'] +
+        weights['거래량'] * np.log1p(df['거래량'])
     )
-    df['score'] = np.nan_to_num(score, nan=0.0)
 
-    # 급등예상확률 계산 (0~1로 정규화)
-    jump = 0.4 * np.clip(mom, 0, None) + 0.3 * (df['z_PER'] < -1) + 0.3 * vol
-    # 0~1 범위로 스케일링
-    df['급등확률'] = np.clip(jump / np.nanpercentile(jump, 98), 0, 1)
+    # 3) 급등 확률 계산 (거래량 급증, 저 PER, 단기 변동성 반영)
+    vol_ratio = df['거래량'] / df['거래량평균20'].replace(0, np.nan)
+    volatility = (df['고가'] - df['저가']) / df['현재가'].replace(0, np.nan)
+    df['급등확률'] = (
+        0.5 * np.clip(vol_ratio - 1, 0, 5) +
+        0.3 * (df['PER'] < 8).astype(float) +
+        0.2 * volatility.fillna(0)
+    )
+
+    # 4) NaN은 0으로
+    df['score']     = df['score'].fillna(0)
+    df['급등확률'] = df['급등확률'].fillna(0)
 
     return df
 
-# 재무정보 신뢰등급
 def assess_reliability(row: pd.Series) -> str:
-    present = sum(pd.notna(row.get(col)) for col in DEFAULT_FIN)
-    return 'A' if present == 3 else 'B' if present == 2 else 'C'
+    """필수 지표 결측 개수에 따른 신뢰등급(A,B,C)"""
+    filled = sum(pd.notna([row[f] for f in ['PER','PBR','EPS','BPS','배당률']]))
+    if filled >= 5:
+        return 'A'
+    elif filled >= 4:
+        return 'B'
+    else:
+        return 'C'
 
-# 툴팁 설명
 FIELD_EXPLAIN = {
-    "PER": "주가수익비율(P/E), 낮을수록 저평가",
-    "PBR": "주가순자산비율(P/B), 1 미만 저평가",
-    "배당수익률": "연간 배당수익률(%)",
-    "score": "투자매력점수 (재무+수급 가중합)",
-    "급등확률": "단기 급등 예측 확률 (0~1)",
+    "PER": "주가수익비율: 낮을수록 저평가",
+    "PBR": "주가순자산비율: 1 이하 저평가",
+    "EPS": "주당순이익",
+    "BPS": "주당순자산",
+    "배당률": "연간 배당수익률(%)",
+    "score": "투자매력점수",
+    "급등확률": "단기 급등 예상 확률(0~?)",
 }
