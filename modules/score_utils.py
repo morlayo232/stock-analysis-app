@@ -1,4 +1,5 @@
 # modules/score_utils.py
+
 import numpy as np
 import pandas as pd
 
@@ -29,7 +30,7 @@ def safe_zscore(arr):
     return (a - m) / s
 
 def finalize_scores(df: pd.DataFrame, style: str = "aggressive") -> pd.DataFrame:
-    # 1) 컬럼 숫자변환
+    # 1) 숫자 변환
     for col in DEFAULT_FIN:
         df[col] = df.get(col, np.nan).apply(safe_float)
 
@@ -61,17 +62,10 @@ def finalize_scores(df: pd.DataFrame, style: str = "aggressive") -> pd.DataFrame
     else:
         score = np.zeros(len(df))
 
-    # 4) NaN → 0, 컬럼 추가
     df['score'] = np.where(np.isnan(score), 0, score)
     return df
 
 def assess_reliability(row: pd.Series) -> str:
-    """
-    A/B/C 등급을 간단히 매깁니다.
-    - A: 주요 재무지표 4개 이상(NA 1개 이하) 존재
-    - B: NA 2~3개
-    - C: NA 4개 이상
-    """
     na_count = sum(pd.isna(row.get(c)) for c in DEFAULT_FIN)
     if na_count <= 1:
         return 'A'
