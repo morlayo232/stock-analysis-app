@@ -1,81 +1,73 @@
-import os
 import pandas as pd
-import numpy as np
+from pykrx import stock
 from datetime import datetime
 from modules.score_utils import finalize_scores
 
-# 실제 KRX/API 수집 로직으로 교체하세요
-def fetch_krx_data(code: str) -> dict | None:
-    try:
-        # ↓ 여기를 실제 크롤러/API로 대체
-        return {
-            "현재가": np.random.randint(1000, 50000),
-            "PER": np.random.uniform(5, 20),
-            "PBR": np.random.uniform(0.5, 3),
-            "EPS": np.random.randint(100, 50000),
-            "BPS": np.random.randint(1000, 50000),
-            "배당률": np.random.uniform(0, 5),
-            "거래량": np.random.randint(1000, 100000),
-            "거래량평균20": np.random.randint(1000, 100000),
-            "고가": np.random.randint(2000, 60000),
-            "저가": np.random.randint(500, 30000),
-        }
-    except:
-        return None
+# 기본 초기 종목 리스트: initial_krx_list.csv
+INIT_CSV = "initial_krx_list.csv"
+OUT_CSV  = "filtered_stocks.csv"
+
+def fetch_fundamental(code:str):
+    today = datetime.today().strftime("%Y%m%d")
+    dff = stock.get_market_fundamental_by_date(today, today, code)
+    if dff.empty: return {}
+    row = dff.iloc[-1]
+    return {
+        "PER": row["PER"],
+        "PBR": row["PBR"],
+        "EPS": None,  # KRX API 제공 안 함
+        "BPS": None,
+        "배당수익률": row["DIV"]
+    }
+
+def fetch_price_and_volumes(code:str):
+    # 최근 20영업일 OHLCV
+    today = datetime.today().strftime("%Y%m%d")
+    dfh = stock.get_market_ohlcv_by_date((pd.Timestamp.today()-pd.Timedelta(days=30)).strftime("%Y%m%d"),
+                                         today, code)
+    if dfh.empty: return {}
+    latest = dfh.iloc[-1]
+    return {
+        "현재가": latest["종가"],
+        "거래량": latest["거래량"],
+        "거래량평균20": dfh["거래량"].rolling(20).mean().iloc[-1],
+        "고가": latest["고가"],
+        "저가": latest["저가"]
+    }
 
 def update_database():
-    csv_in = "initial_krx_list_test.csv"
-    if not os.path.exists(csv_in):
-        print(f"{csv_in} not found.")
-        return
-
-    stocks = pd.read_csv(csv_in, dtype=str)
+    df0 = pd.read_csv(INIT_CSV, dtype=str)
     records = []
-    for _, row in stocks.iterrows():
-        data = fetch_krx_data(row["종목코드"])
-        if not data:
-            continue
+    for _, r in df0.iterrows():
+        code = r["종목코드"].zfill(6)
+        fund = fetch_fundamental(code)
+        pr   = fetch_price_and_volumes(code)
+        if not fund or not pr: continue
         rec = {
-            "종목명": row["종목명"],
-            "종목코드": row["종목코드"].zfill(6),
+            "종목명": r["종목명"],
+            "종목코드": code,
             "갱신일": datetime.now().strftime("%Y-%m-%d %H:%M"),
-            **data
+            **fund, **pr
         }
         records.append(rec)
-
-    if not records:
-        print("데이터 수집 실패: 저장 건너뜀")
-        return
-
+    if not records: return
     df = pd.DataFrame(records)
-    df = finalize_scores(df)
-    df.to_csv("filtered_stocks.csv", index=False)
-    print("filtered_stocks.csv 생성 완료.")
+    df = finalize_scores(df, style="aggressive")
+    df.to_csv(OUT_CSV, index=False)
 
-def update_single_stock(code: str):
-    path = "filtered_stocks.csv"
-    if not os.path.exists(path):
-        print("filtered_stocks.csv가 없습니다. 전체갱신 먼저 실행하세요.")
-        return
-
-    df = pd.read_csv(path, dtype=str)
-    df["종목코드"] = df["종목코드"].str.zfill(6)
-    idx = df.index[df["종목코드"] == code]
-    if len(idx) == 0:
-        print(f"{code} 종목을 찾을 수 없습니다.")
-        return
-
-    data = fetch_krx_data(code)
-    if not data:
-        print(f"{code} 개별 수집 실패")
-        return
-
-    i = idx[0]
-    for k, v in data.items():
-        df.at[i, k] = v
-    df.at[i, "갱신일"] = datetime.now().strftime("%Y-%m-%d %H:%M")
-
-    # 재계산 후 저장
-    df = finalize_scores(df)
-    df.to_csv(path, index=False)
-    print(f"{code} 개별 업데이트 완료.")
+def update_single_stock(code:str):
+    try:
+        df = pd.read_csv(OUT_CSV, dtype=str)
+    except FileNotFoundError:
+        update_database()
+        df = pd.read_csv(OUT_CSV, dtype=str)
+    df = df.set_index("종목코드")
+    fund = fetch_fundamental(code)
+    pr   = fetch_price_and_volumes(code)
+    if fund and pr:
+        df.loc[code, list(fund.keys())] = fund.values()
+        df.loc[code, list(pr.keys())]   = pr.values()
+        df.loc[code, "갱신일"] = datetime.now().strftime("%Y-%m-%d %H:%M")
+        df = df.reset_index()
+        df = finalize_scores(df, style="aggressive")
+        df.to_csv(OUT_CSV, index=False)
