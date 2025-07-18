@@ -1,11 +1,31 @@
 name: Daily Stock Update
+
 on:
-schedule:
-- cron: '0 23 * * *' # 매일 오전 8시 (KST)
-workflow_dispatch:
+  schedule:
+    - cron: '0 23 * * *'  # 매일 오전 8시(KST) 실행 (UTC 23시)
+  workflow_dispatch:
+
 jobs:
-run-update:
-runs-on: ubuntu-latest
-steps:
-- uses: actions/checkout@v3
-- name: Set up Python uses: actions/setup-python@v4 with: python-version: '3.10' - name: Install dependencies run: | pip install -r requirements.txt - name: Run stock DB update run: | python update_stock_database.py - name: Commit and push run: | git config --global user.name 'github-actions' git config --global user.email 'actions@github.com' git add filtered_stocks.csv git commit -m "Daily update" git push a8885yyyt
+  run-update:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.10'
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Run stock DB update
+        run: python update_stock_database.py
+
+      - name: Commit and push updated CSV
+        run: |
+          git config --global user.name 'github-actions'
+          git config --global user.email 'actions@github.com'
+          git add filtered_stocks.csv
+          git commit -m "Daily update"
+          git push
