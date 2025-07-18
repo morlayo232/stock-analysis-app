@@ -1,16 +1,13 @@
 import os
 import pandas as pd
+import numpy as np
+import time
 from datetime import datetime
 from modules.score_utils import finalize_scores
 
-# 스크립트 파일 위치(stock-analysis-app/stock-analysis-app/modules)를
-# 한 단계 위(stock-analysis-app)로 옮겨야 GitHub Actions 루트와 맞춥니다.
-ROOT = os.path.dirname(os.path.dirname(__file__))
-
 def fetch_krx_data(code):
-    # TODO: 실제 KRX/API 크롤링 로직으로 대체하세요.
+    # TODO: 진짜 KRX/API 수집 로직으로 교체
     try:
-        import numpy as np
         return {
             "현재가": np.random.randint(1000, 50000),
             "PER": np.random.uniform(5, 20),
@@ -28,38 +25,29 @@ def fetch_krx_data(code):
         return None
 
 def update_database():
-    # working dir → 리포지토리 최상위(stock-analysis-app)
-    os.chdir(ROOT)
-
     stocks = pd.read_csv("initial_krx_list_test.csv", dtype=str)
     all_data = []
     for i, row in stocks.iterrows():
-        stock_data = fetch_krx_data(row["종목코드"])
-        if stock_data is None:
-            print(f"{row['종목명']}({row['종목코드']}): 데이터 수집 실패, 건너뜀")
+        d = fetch_krx_data(row["종목코드"])
+        if d is None:
             continue
-
-        data = {
+        record = {
             "종목명": row["종목명"],
-            "종목코드": str(row["종목코드"]).zfill(6),
+            "종목코드": row["종목코드"].zfill(6),
             "갱신일": datetime.now().strftime("%Y-%m-%d %H:%M"),
-            **stock_data
+            **d
         }
-        all_data.append(data)
-        print(f"{i+1}/{len(stocks)} 갱신 중...", end="\r")
-
+        all_data.append(record)
     if not all_data:
-        print("수집된 데이터가 없습니다. 파일 저장 건너뜀.")
+        print("수집된 데이터가 없습니다.")
         return
-
     df = pd.DataFrame(all_data)
     df = finalize_scores(df)
     df.to_csv("filtered_stocks.csv", index=False)
-
-    # 확인 로그
-    print("After save, files in root:", os.listdir())
-    assert os.path.exists("filtered_stocks.csv"), "filtered_stocks.csv 생성 실패"
     print("filtered_stocks.csv 생성 완료!")
+
+if __name__ == "__main__":
+    update_database()
 
 def update_single_stock(code):
     os.chdir(ROOT)
