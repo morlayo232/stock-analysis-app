@@ -1,4 +1,5 @@
 # app.py
+
 import os
 import streamlit as st
 import pandas as pd
@@ -6,8 +7,9 @@ import numpy as np
 from datetime import datetime
 
 from modules.score_utils import finalize_scores, assess_reliability, FIELD_EXPLAIN
-from calculate_indicators import calc_ema     # ← 경로 수정
-from update_stock_database import update_database, update_single_stock
+from modules.calculate_indicators import calc_ema           # ← 여기
+from modules.chart_utils      import plot_price_rsi_macd_bb
+from update_stock_database    import update_database, update_single_stock
 
 # ─────────────────────────────────────────────────────────────────────────────
 # 1) 추천가 계산 함수
