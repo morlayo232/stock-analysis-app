@@ -1,5 +1,3 @@
-# modules/calculate_indicators.py
-
 import pandas as pd
 
 def calc_ema(df, window=20, col='종가'):
@@ -23,27 +21,24 @@ def calc_macd(df, col='종가'):
     return macd, signal, hist
 
 def plot_price_rsi_macd_bb(df):
-    """
-    종가 + 볼린저밴드, RSI, MACD를 각각 Plotly Figure 로 반환
-    """
     import plotly.graph_objs as go
+    from .calculate_indicators import calc_rsi, calc_macd
 
-    # 볼린저 밴드 계산
-    ma20 = df['종가'].rolling(20).mean()
-    std20 = df['종가'].rolling(20).std()
-    bb_high = ma20 + 2 * std20
-    bb_low  = ma20 - 2 * std20
+    # 볼린저 밴드
+    ma20   = df['종가'].rolling(20).mean()
+    std20  = df['종가'].rolling(20).std()
+    bb_hi  = ma20 + 2*std20
+    bb_lo  = ma20 - 2*std20
 
-    # price + BB
     fig = go.Figure()
-    fig.add_trace(go.Scatter(x=df.index, y=df['종가'],    name='종가'))
-    fig.add_trace(go.Scatter(x=df.index, y=ma20,          name='MA20', line=dict(dash='dash')))
-    fig.add_trace(go.Scatter(x=df.index, y=bb_high,       name='BB 상단', line=dict(color='rgba(0,0,0,0.2)')))
-    fig.add_trace(go.Scatter(x=df.index, y=bb_low,        name='BB 하단', line=dict(color='rgba(0,0,0,0.2)')))
+    fig.add_trace(go.Scatter(x=df.index, y=df['종가'], name='종가'))
+    fig.add_trace(go.Scatter(x=df.index, y=ma20,   name='MA20', line=dict(dash='dash')))
+    fig.add_trace(go.Scatter(x=df.index, y=bb_hi,  name='BB 상단', line=dict(color='rgba(0,0,0,0.2)')))
+    fig.add_trace(go.Scatter(x=df.index, y=bb_lo,  name='BB 하단', line=dict(color='rgba(0,0,0,0.2)')))
     fig.update_layout(title='종가 & 볼린저밴드', yaxis_title='가격')
 
     # RSI
-    rsi = calc_rsi(df, window=14)
+    rsi = calc_rsi(df)
     fig_rsi = go.Figure()
     fig_rsi.add_trace(go.Scatter(x=df.index, y=rsi, name='RSI(14)'))
     fig_rsi.update_layout(title='RSI (14)', yaxis=dict(range=[0,100]))
@@ -51,7 +46,7 @@ def plot_price_rsi_macd_bb(df):
     # MACD
     macd, signal, hist = calc_macd(df)
     fig_macd = go.Figure()
-    fig_macd.add_trace(go.Bar  (x=df.index, y=hist,   name='히스토그램'))
+    fig_macd.add_trace(go.Bar(x=df.index, y=hist,   name='히스토그램'))
     fig_macd.add_trace(go.Scatter(x=df.index, y=macd,   name='MACD'))
     fig_macd.add_trace(go.Scatter(x=df.index, y=signal, name='Signal', line=dict(dash='dash')))
     fig_macd.update_layout(title='MACD', yaxis_title='값')
