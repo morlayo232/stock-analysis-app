@@ -1,57 +1,61 @@
 import numpy as np
 import pandas as pd
 
-FIELD_EXPLAIN = {
-    "PER":      "주가수익비율(PER), 낮을수록 저평가",
-    "PBR":      "주가순자산비율(PBR), 1 미만 저평가",
-    "EPS":      "주당순이익(EPS)",
-    "BPS":      "주당순자산(BPS)",
-    "배당률":   "연간 배당수익률(%)",
-    "score":    "최종 투자매력점수",
-    "급등확률": "단기 급등 신호 확률 (0~1)",
-}
+DEFAULT_FIN = ['PER', 'PBR', 'ROE', '배당수익률']
 
-def finalize_scores(df, style="aggressive"):
-    def clean(col, default=0):
-        s = pd.to_numeric(df.get(col, default), errors="coerce").fillna(default)
-        return s.mask(s < 0, 0)
+def safe_float(val):
+    try:
+        return float(str(val).replace(",", "").replace("%", ""))
+    except Exception:
+        return np.nan
 
-    w = {
-        "aggressive": [-0.3, -0.2, 0.2, 0.1, 0.15, 0.1],
-        "stable":     [-0.2, -0.3, 0.1, 0.2, 0.1, 0.1],
-        "dividend":   [-0.15,-0.1, 0.05,0.05,0.4,0.1]
-    }[style]
+def clean(df: pd.DataFrame, col: str, default=0.0) -> pd.Series:
+    """
+    df[col] 이 존재하면 숫자로 바꿔 결측치는 default 로,
+    없으면 기본값(default) 시리즈를 반환합니다.
+    """
+    if col in df.columns:
+        s = pd.to_numeric(df[col], errors="coerce").fillna(default)
+    else:
+        # 없는 컬럼이라면 전체 length 만큼 default 시리즈
+        s = pd.Series(default, index=df.index, dtype=float)
+    return s
 
-    per   = clean("PER",       20)
-    pbr   = clean("PBR",       2)
-    eps   = clean("EPS",       0)
-    bps   = clean("BPS",       0)
-    divi  = clean("배당률",     0)
-    vol   = clean("거래량",     0)
-    vol20 = clean("거래량평균20", max(vol.mean(),1))
+def safe_zscore(arr):
+    arr = np.array(arr, dtype=np.float64)
+    mean = np.nanmean(arr)
+    std = np.nanstd(arr)
+    if std == 0 or np.isnan(std):
+        return np.zeros_like(arr)
+    return (arr - mean) / std
 
-    # 투자매력점수
-    score = (
-        w[0]*per +
-        w[1]*pbr +
-        w[2]*(eps/1e4) +
-        w[3]*(bps/1e4) +
-        w[4]*divi +
-        w[5]*np.log1p(vol)
-    )
-    df["score"] = score
+def finalize_scores(df: pd.DataFrame, style="aggressive") -> pd.DataFrame:
+    # 1) 모든 DEFAULT_FIN 컬럼을 safe_float → numeric
+    for col in DEFAULT_FIN:
+        df[col] = df[col].apply(safe_float)
 
-    # 급등확률
-    volatility = (clean("고가",0) - clean("저가",0)) / clean("현재가",1)
-    jump = (
-        0.4 * np.clip((vol/vol20)-1, 0, 5) +
-        0.3 * (per<8).astype(float) +
-        0.2 * volatility
-    )
-    df["급등확률"] = jump
+    # 2) z-스코어 계산
+    for col in DEFAULT_FIN:
+        df[f'z_{col}'] = safe_zscore(df[col])
+
+    # 3) 스타일별 가중합
+    if style == "aggressive":
+        score = (-df['z_PER']*0.25
+                 -df['z_PBR']*0.25
+                 +df['z_ROE']*0.35
+                 +df['z_배당수익률']*0.15)
+    elif style == "stable":
+        score = (-df['z_PER']*0.3
+                 -df['z_PBR']*0.4
+                 +df['z_ROE']*0.2
+                 +df['z_배당수익률']*0.1)
+    elif style == "dividend":
+        score = ( df['z_배당수익률']*0.7
+                 -df['z_PBR']*0.2
+                 -df['z_PER']*0.1)
+    else:
+        score = np.zeros(len(df))
+
+    df['score'] = np.where(np.isnan(score), 0, score)
 
     return df
-
-def assess_reliability(row):
-    cnt = sum(pd.notna([row.get(k) for k in ["PER","PBR","EPS","BPS","배당률"]]))
-    return "A" if cnt>=5 else "B" if cnt>=4 else "C"
