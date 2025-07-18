@@ -1,11 +1,12 @@
 # update_stock_database.py
-
+import os
 import pandas as pd
 import numpy as np
-from datetime import datetime
+import time
+from datetime import datetime, timedelta
 from modules.score_utils import finalize_scores
 
-# 실제 KRX/API 수집 로직으로 교체하세요
+# (1) 재무/밸류 수집 - 실제 KRX/API 로직으로 교체하세요
 def fetch_krx_data(code):
     try:
         return {
@@ -17,32 +18,55 @@ def fetch_krx_data(code):
             "배당률": np.random.uniform(0, 5),
             "거래량": np.random.randint(1000, 100000),
             "거래량평균20": np.random.randint(1000, 100000),
-            "고가": np.random.randint(2000, 60000),
-            "저가": np.random.randint(500, 30000),
         }
     except Exception as e:
+        print("수집오류:", e)
         return None
 
-def update_single_stock(df_all: pd.DataFrame, code: str) -> pd.DataFrame:
-    """
-    df_all: 현재 세션에 로드된 전체 DataFrame
-    code: 6자리 문자열 종목코드
-    반환값: 해당 코드 행만 갱신된 새로운 DataFrame
-    """
-    # 실데이터 수집
-    stock_data = fetch_krx_data(code)
-    if stock_data is None:
-        raise RuntimeError(f"{code} 데이터 수집 실패")
-    # 갱신일 기록
-    stock_data["갱신일"] = datetime.now().strftime("%Y-%m-%d %H:%M")
-    # 해당 행 인덱스 찾기
-    idx = df_all.index[df_all["종목코드"] == code]
-    if len(idx) == 0:
-        raise KeyError(f"{code} 종목이 존재하지 않습니다.")
-    i = idx[0]
-    # 필드 덮어쓰기
-    for k, v in stock_data.items():
-        df_all.at[i, k] = v
-    # 전체 DataFrame에 score/급등확률 재계산
-    df_all = finalize_scores(df_all)
-    return df_all
+# (2) 시계열 가격 히스토리 수집 (pykrx 사용 예시)
+def fetch_price_history(code, days=90):
+    from pykrx import stock
+    end = datetime.today().strftime("%Y%m%d")
+    start = (datetime.today() - timedelta(days=days)).strftime("%Y%m%d")
+    df = stock.get_market_ohlcv_by_date(start, end, code)
+    if not df.empty:
+        df.to_csv(f"price_{code}.csv")
+    return df
+
+def update_database():
+    # 초기 리스트 로드
+    stocks = pd.read_csv("initial_krx_list_test.csv", dtype=str)
+    stocks["종목코드"] = stocks["종목코드"].str.zfill(6)
+
+    all_data = []
+    for idx, row in stocks.iterrows():
+        code = row["종목코드"]
+        fin = fetch_krx_data(code)
+        if fin is None:
+            print(f"{code}: 재무 수집 실패, 스킵")
+            continue
+
+        record = {
+            "종목명": row["종목명"],
+            "종목코드": code,
+            "갱신일": datetime.now().strftime("%Y-%m-%d %H:%M"),
+            **fin
+        }
+        all_data.append(record)
+
+        # 가격 히스토리도 동시에 저장
+        fetch_price_history(code)
+
+        print(f"[{idx+1}/{len(stocks)}] {code} 갱신 완료", end="\r")
+
+    if not all_data:
+        print("▶ 수집된 데이터 없음, CSV 생성 건너뜀.")
+        return
+
+    df = pd.DataFrame(all_data)
+    df = finalize_scores(df)
+    df.to_csv("filtered_stocks.csv", index=False)
+    print("▶ filtered_stocks.csv 생성 완료!")
+
+if __name__ == "__main__":
+    update_database()
