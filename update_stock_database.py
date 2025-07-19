@@ -3,46 +3,48 @@ from pykrx import stock
 from datetime import datetime, timedelta
 from modules.score_utils import finalize_scores
 
-def get_recent_business_day(n=10):
+def fetch_price(code, max_retry=10):
     today = datetime.today()
-    for i in range(n):
+    for i in range(max_retry):
         day = today - timedelta(days=i)
-        if day.weekday() < 5:
-            return day.strftime("%Y%m%d")
-    return today.strftime("%Y%m%d")
-
-def fetch_price(code):
-    date = get_recent_business_day()
-    try:
-        df = stock.get_market_ohlcv_by_date(date, date, code)
-        if df is not None and not df.empty:
-            return {
-                "현재가": int(df['종가'].iloc[-1]),
-                "거래대금": int(df['거래대금'].iloc[-1])
-            }
-    except Exception as e:
-        print(f"fetch_price error for {code}: {e}")
+        if day.weekday() >= 5:  # 주말 제외
+            continue
+        date = day.strftime("%Y%m%d")
+        try:
+            df = stock.get_market_ohlcv_by_date(date, date, code)
+            if df is not None and not df.empty:
+                return {
+                    "현재가": int(df['종가'].iloc[-1]),
+                    "거래대금": int(df['거래대금'].iloc[-1])
+                }
+        except Exception:
+            continue
     return {"현재가": None, "거래대금": None}
 
-def fetch_fundamental(code):
-    date = get_recent_business_day()
-    try:
-        df = stock.get_market_fundamental_by_date(date, date, code)
-        if df is not None and not df.empty:
-            return {
-                'PER': float(df['PER'].iloc[-1]) if not pd.isna(df['PER'].iloc[-1]) else None,
-                'PBR': float(df['PBR'].iloc[-1]) if not pd.isna(df['PBR'].iloc[-1]) else None,
-                'EPS': float(df['EPS'].iloc[-1]) if not pd.isna(df['EPS'].iloc[-1]) else None,
-                'BPS': float(df['BPS'].iloc[-1]) if not pd.isna(df['BPS'].iloc[-1]) else None,
-                '배당률': float(df['DIV'].iloc[-1]) if not pd.isna(df['DIV'].iloc[-1]) else None
-            }
-    except Exception as e:
-        print(f"fetch_fundamental error for {code}: {e}")
+def fetch_fundamental(code, max_retry=10):
+    today = datetime.today()
+    for i in range(max_retry):
+        day = today - timedelta(days=i)
+        if day.weekday() >= 5:
+            continue
+        date = day.strftime("%Y%m%d")
+        try:
+            df = stock.get_market_fundamental_by_date(date, date, code)
+            if df is not None and not df.empty:
+                return {
+                    'PER': float(df['PER'].iloc[-1]) if not pd.isna(df['PER'].iloc[-1]) else None,
+                    'PBR': float(df['PBR'].iloc[-1]) if not pd.isna(df['PBR'].iloc[-1]) else None,
+                    'EPS': float(df['EPS'].iloc[-1]) if not pd.isna(df['EPS'].iloc[-1]) else None,
+                    'BPS': float(df['BPS'].iloc[-1]) if not pd.isna(df['BPS'].iloc[-1]) else None,
+                    '배당률': float(df['DIV'].iloc[-1]) if not pd.isna(df['DIV'].iloc[-1]) else None
+                }
+        except Exception:
+            continue
     return {'PER': None, 'PBR': None, 'EPS': None, 'BPS': None, '배당률': None}
 
 def update_database():
     import sys
-    df_list = pd.read_csv("initial_krx_list_test.csv", dtype={'종목코드': str})
+    df_list = pd.read_csv("initial_krx_list.csv", dtype={'종목코드': str})
     codes = dict(zip(df_list['종목명'], df_list['종목코드']))
     data = []
     for name, code in codes.items():
