@@ -17,11 +17,11 @@ def fetch_price(code):
         df = stock.get_market_ohlcv_by_date(date, date, code)
         if df is not None and not df.empty:
             return {
-                "현재가": int(df['종가'][-1]),
-                "거래대금": df['거래대금'][-1]
+                "현재가": int(df['종가'].iloc[-1]),
+                "거래대금": int(df['거래대금'].iloc[-1])
             }
-    except Exception:
-        pass
+    except Exception as e:
+        print(f"fetch_price error for {code}: {e}")
     return {"현재가": None, "거래대금": None}
 
 def fetch_fundamental(code):
@@ -30,14 +30,14 @@ def fetch_fundamental(code):
         df = stock.get_market_fundamental_by_date(date, date, code)
         if df is not None and not df.empty:
             return {
-                'PER': float(df['PER'][-1]) if not pd.isna(df['PER'][-1]) else None,
-                'PBR': float(df['PBR'][-1]) if not pd.isna(df['PBR'][-1]) else None,
-                'EPS': float(df['EPS'][-1]) if not pd.isna(df['EPS'][-1]) else None,
-                'BPS': float(df['BPS'][-1]) if not pd.isna(df['BPS'][-1]) else None,
-                '배당률': float(df['DIV'][-1]) if not pd.isna(df['DIV'][-1]) else None
+                'PER': float(df['PER'].iloc[-1]) if not pd.isna(df['PER'].iloc[-1]) else None,
+                'PBR': float(df['PBR'].iloc[-1]) if not pd.isna(df['PBR'].iloc[-1]) else None,
+                'EPS': float(df['EPS'].iloc[-1]) if not pd.isna(df['EPS'].iloc[-1]) else None,
+                'BPS': float(df['BPS'].iloc[-1]) if not pd.isna(df['BPS'].iloc[-1]) else None,
+                '배당률': float(df['DIV'].iloc[-1]) if not pd.isna(df['DIV'].iloc[-1]) else None
             }
-    except Exception:
-        pass
+    except Exception as e:
+        print(f"fetch_fundamental error for {code}: {e}")
     return {'PER': None, 'PBR': None, 'EPS': None, 'BPS': None, '배당률': None}
 
 def update_database():
