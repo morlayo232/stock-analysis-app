@@ -7,18 +7,21 @@ def fetch_price(code, max_retry=10):
     today = datetime.today()
     for i in range(max_retry):
         day = today - timedelta(days=i)
-        if day.weekday() >= 5:  # 주말 제외
+        if day.weekday() >= 5:
             continue
         date = day.strftime("%Y%m%d")
         try:
             df = stock.get_market_ohlcv_by_date(date, date, code)
             if df is not None and not df.empty:
+                price = int(df['종가'].iloc[-1])
+                volume = int(df['거래량'].iloc[-1])
+                transaction_value = price * volume  # 거래대금 계산
                 return {
-                    "현재가": int(df['종가'].iloc[-1]),
-                    "거래대금": int(df['거래대금'].iloc[-1])
+                    "현재가": price,
+                    "거래대금": transaction_value
                 }
-        except Exception:
-            continue
+        except Exception as e:
+            print(f"fetch_price error for {code} on {date}: {e}")
     return {"현재가": None, "거래대금": None}
 
 def fetch_fundamental(code, max_retry=10):
@@ -38,8 +41,8 @@ def fetch_fundamental(code, max_retry=10):
                     'BPS': float(df['BPS'].iloc[-1]) if not pd.isna(df['BPS'].iloc[-1]) else None,
                     '배당률': float(df['DIV'].iloc[-1]) if not pd.isna(df['DIV'].iloc[-1]) else None
                 }
-        except Exception:
-            continue
+        except Exception as e:
+            print(f"fetch_fundamental error for {code} on {date}: {e}")
     return {'PER': None, 'PBR': None, 'EPS': None, 'BPS': None, '배당률': None}
 
 def update_database():
