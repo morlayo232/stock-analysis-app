@@ -31,14 +31,19 @@ def finalize_scores(df, style="aggressive"):
         df[col] = df[col].apply(safe_float)
     for col in DEFAULT_FIN:
         df[f'z_{col}'] = safe_zscore(df[col])
+
     if style == "aggressive":
-        score = (-df['z_PER'] * 0.25) + (-df['z_PBR'] * 0.25) + (df['z_EPS'] * 0.25) + (df['z_BPS'] * 0.15) + (df['z_배당률'] * 0.10)
+        score = (-df['z_PER'] * 0.3) + (-df['z_PBR'] * 0.25) + (df['z_EPS'] * 0.25) + (df['z_BPS'] * 0.1) + (df['z_배당률'] * 0.1)
+        score += np.where(df['EPS'] > 0, 0.1, -0.1)
     elif style == "stable":
-        score = (-df['z_PER'] * 0.2) + (-df['z_PBR'] * 0.3) + (df['z_BPS'] * 0.3) + (df['z_배당률'] * 0.2)
+        score = (-df['z_PER'] * 0.25) + (-df['z_PBR'] * 0.35) + (df['z_BPS'] * 0.25) + (df['z_배당률'] * 0.15)
+        score += np.where(df['BPS'] > df['BPS'].median(), 0.1, 0)
     elif style == "dividend":
-        score = (df['z_배당률'] * 0.6) + (-df['z_PBR'] * 0.2) + (-df['z_PER'] * 0.2)
+        score = (df['z_배당률'] * 0.7) + (-df['z_PBR'] * 0.15) + (-df['z_PER'] * 0.15)
+        score += np.where(df['배당률'] >= 3, 0.15, 0)
     else:
         score = np.zeros(len(df))
+
     score = np.where(np.isnan(score), 0, score)
     df['score'] = score
     return df
