@@ -42,7 +42,7 @@ def fetch_fundamental(code):
 
 def update_database():
     import sys
-    df_list = pd.read_csv("initial_krx_list.csv", dtype={'종목코드': str})
+    df_list = pd.read_csv("initial_krx_list_test.csv", dtype={'종목코드': str})
     codes = dict(zip(df_list['종목명'], df_list['종목코드']))
     data = []
     for name, code in codes.items():
