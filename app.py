@@ -16,7 +16,7 @@ from pykrx import stock
 st.set_page_config(page_title="투자 매니저", layout="wide")
 st.title("투자 매니저")
 
-@st.cache_data(ttl=3600)
+@st.cache_data(ttl=3600, show_spinner=False)
 def load_filtered_data():
     try:
         df = pd.read_csv("filtered_stocks.csv", dtype={'종목코드': str})
