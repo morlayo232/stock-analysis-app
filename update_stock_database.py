@@ -1,22 +1,23 @@
-import pandas as pd
 from pykrx import stock
-from datetime import datetime
-from modules.score_utils import finalize_scores
+from datetime import datetime, timedelta
 
-def fetch_price(code):
-    today = datetime.today().strftime("%Y%m%d")
-    try:
-        df = stock.get_market_ohlcv_by_date(today, today, code)
-        if df is not None and not df.empty:
-            return int(df['종가'][-1])
-    except Exception:
-        pass
-    return None
+def get_recent_business_day(n_days=10):
+    today = datetime.today()
+    for i in range(n_days):
+        day = today - timedelta(days=i)
+        if day.weekday() < 5:  # 평일
+            try:
+                df = stock.get_market_fundamental_by_date(day.strftime("%Y%m%d"), day.strftime("%Y%m%d"), "005930")
+                if df is not None and not df.empty:
+                    return day.strftime("%Y%m%d")
+            except:
+                continue
+    return today.strftime("%Y%m%d")
 
 def fetch_fundamental(code):
-    today = datetime.today().strftime("%Y%m%d")
+    date = get_recent_business_day()
     try:
-        df = stock.get_market_fundamental_by_date(today, today, code)
+        df = stock.get_market_fundamental_by_date(date, date, code)
         if df is not None and not df.empty:
             return {
                 'PER': float(df['PER'][-1]) if not pd.isna(df['PER'][-1]) else None,
@@ -25,8 +26,8 @@ def fetch_fundamental(code):
                 'BPS': float(df['BPS'][-1]) if not pd.isna(df['BPS'][-1]) else None,
                 '배당률': float(df['DIV'][-1]) if not pd.isna(df['DIV'][-1]) else None
             }
-    except Exception:
-        pass
+    except Exception as e:
+        print(f"fetch_fundamental error {code}: {e}")
     return {'PER': None, 'PBR': None, 'EPS': None, 'BPS': None, '배당률': None}
 
 def update_database():
