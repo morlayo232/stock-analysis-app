@@ -2,7 +2,7 @@ name: Daily Stock Update
 
 on:
   schedule:
-    - cron: '0 23 * * *'  # 매일 8시 KST(UTC 23시) 실행
+    - cron: '0 23 * * *'  # 매일 8시 KST (UTC 23시) 실행
   workflow_dispatch:
 
 jobs:
@@ -10,6 +10,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
+        with:
+          fetch-depth: 0   # 최신 커밋과 브랜치 정보를 모두 가져와서 충돌 방지
 
       - name: Set up Python
         uses: actions/setup-python@v4
@@ -30,6 +32,6 @@ jobs:
           if git diff --cached --quiet; then
             echo "No changes to commit"
           else
-            git commit -m "Daily update"
-            git push
+            git pull --rebase origin main
+            git push origin main
           fi
