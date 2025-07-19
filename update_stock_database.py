@@ -1,28 +1,35 @@
-# update_stock_database.py
-
 import pandas as pd
 from pykrx import stock
-from datetime import datetime
+from datetime import datetime, timedelta
 from modules.score_utils import finalize_scores
 
+def get_recent_business_day(n_days=10):
+    today = datetime.today()
+    for i in range(n_days):
+        day = today - timedelta(days=i)
+        if day.weekday() < 5:  # 평일 체크
+            try:
+                df = stock.get_market_ohlcv_by_date(day.strftime("%Y%m%d"), day.strftime("%Y%m%d"), "005930")
+                if df is not None and not df.empty:
+                    return day.strftime("%Y%m%d")
+            except:
+                continue
+    return today.strftime("%Y%m%d")
+
 def fetch_price(code):
-    today = datetime.today().strftime("%Y%m%d")
+    date = get_recent_business_day()
     try:
-        df = stock.get_market_ohlcv_by_date(today, today, code)
+        df = stock.get_market_ohlcv_by_date(date, date, code)
         if df is not None and not df.empty:
-            # 거래대금 포함 반환
-            return {
-                "현재가": int(df['종가'][-1]),
-                "거래대금": df['거래대금'][-1]
-            }
+            return int(df['종가'][-1])
     except Exception:
         pass
-    return {"현재가": None, "거래대금": None}
+    return None
 
 def fetch_fundamental(code):
-    today = datetime.today().strftime("%Y%m%d")
+    date = get_recent_business_day()
     try:
-        df = stock.get_market_fundamental_by_date(today, today, code)
+        df = stock.get_market_fundamental_by_date(date, date, code)
         if df is not None and not df.empty:
             return {
                 'PER': float(df['PER'][-1]) if not pd.isna(df['PER'][-1]) else None,
@@ -37,17 +44,16 @@ def fetch_fundamental(code):
 
 def update_database():
     import sys
-    df_list = pd.read_csv("initial_krx_list_test.csv", dtype={'종목코드': str})
+    df_list = pd.read_csv("initial_krx_list.csv", dtype={'종목코드': str})
     codes = dict(zip(df_list['종목명'], df_list['종목코드']))
     data = []
     for name, code in codes.items():
-        price_info = fetch_price(code)
+        price = fetch_price(code)
         fin = fetch_fundamental(code)
         data.append({
             "종목명": name,
             "종목코드": code,
-            "현재가": price_info["현재가"],
-            "거래대금": price_info["거래대금"],
+            "현재가": price,
             "PER": fin["PER"],
             "PBR": fin["PBR"],
             "EPS": fin.get("EPS"),
