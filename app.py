@@ -99,7 +99,7 @@ try:
 except Exception:
     st.info("재무 데이터가 부족합니다.")
 
-start = "20240101"
+start = (datetime.today() - pd.Timedelta(days=365)).strftime("%Y%m%d")
 end = datetime.today().strftime("%Y%m%d")
 df_price = stock.get_market_ohlcv_by_date(start, end, code)
 
