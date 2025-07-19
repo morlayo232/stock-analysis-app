@@ -8,9 +8,7 @@ def get_recent_business_day(n=10):
     for i in range(n):
         day = today - timedelta(days=i)
         if day.weekday() < 5:
-            df = stock.get_market_ohlcv_by_date(day.strftime("%Y%m%d"), day.strftime("%Y%m%d"), "005930")
-            if df is not None and not df.empty:
-                return day.strftime("%Y%m%d")
+            return day.strftime("%Y%m%d")
     return today.strftime("%Y%m%d")
 
 def fetch_price(code):
