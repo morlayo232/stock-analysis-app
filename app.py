@@ -17,18 +17,18 @@ from price_utils import calculate_recommended_sell
 from datetime import datetime
 from pykrx import stock
 
-st.set_page_config(page_title="TYnex Investment Manager", layout="wide")
+st.set_page_config(page_title="Investment Manager", layout="wide")
 
 # 메인 타이틀과 로고 배치
 col_logo, col_title = st.columns([1,4])
 with col_logo:
     try:
         logo_img = Image.open("logo_tynex.png")
-        st.image(logo_img, width=120)
+        st.image(logo_img, width=180)
     except Exception:
         st.write("로고 이미지 로드 실패")
 with col_title:
-    st.markdown("<h1 style='margin-top: 35px;'>TYnex Investment Manager</h1>", unsafe_allow_html=True)
+    st.markdown("<h1 style='margin-top: 35px;'>Investment Manager</h1>", unsafe_allow_html=True)
 
 @st.cache_data(ttl=3600, show_spinner=False)
 def load_filtered_data():
