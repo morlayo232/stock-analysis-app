@@ -20,7 +20,7 @@ from pykrx import stock
 st.set_page_config(page_title="Investment Manager", layout="wide")
 
 # 로고와 타이틀을 가로로 배치하고 스타일 조정
-col_logo, col_title = st.columns([1, 4])
+col_logo, col_title = st.columns([2, 4])
 
 with col_logo:
     try:
