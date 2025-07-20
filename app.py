@@ -13,7 +13,7 @@ from score_utils import finalize_scores, assess_reliability
 from fetch_news import fetch_google_news
 from chart_utils import plot_price_rsi_macd
 from calculate_indicators import add_tech_indicators
-from price_utils import calculate_recommended_sell  # 신규 추가
+from price_utils import calculate_recommended_sell
 from datetime import datetime
 from pykrx import stock
 
@@ -168,66 +168,7 @@ else:
         else:
             st.metric("추천 매도가", "조건 미충족")
 
-    # 추천 매도가 근거 상세 설명
-    if sell_price is not None:
-        st.markdown("### 💡 추천 매도 가격 근거 상세 분석")
-        explanations = []
-
-        explanations.append("- MACD가 Signal선을 하향 돌파하여 단기 매도세 강화를 시사합니다.")
-        if 'RSI_14' in df_price.columns and not np.isnan(df_price['RSI_14'].iloc[-1]):
-            rsi_latest = df_price['RSI_14'].iloc[-1]
-            if rsi_latest > 75:
-                explanations.append("- RSI가 75 이상으로 매우 과매수 상태, 조정 가능성 큼.")
-            elif rsi_latest > 70:
-                explanations.append("- RSI가 70 이상으로 과매수 구간, 단기 조정 가능성 존재.")
-            elif rsi_latest < 40:
-                explanations.append("- RSI가 40 이하로 저평가 상태이나 현재는 매도 신호 우선.")
-        if buy_price is not None:
-            profit_ratio = (sell_price - buy_price) / buy_price * 100
-            if profit_ratio >= 15:
-                explanations.append(f"- 매수가 대비 {profit_ratio:.2f}% 수익 실현 구간, 고수익 실현 타이밍.")
-            elif profit_ratio >= 5:
-                explanations.append(f"- 약 {profit_ratio:.2f}% 수익권, 분할 매도 전략 권장.")
-            elif profit_ratio > 0:
-                explanations.append(f"- 소폭 수익, 추가 상승 기대 시 신중 판단 필요.")
-            else:
-                explanations.append(f"- 손실 구간, 손절 또는 모니터링 필요.")
-
-        if '거래량' in df_price.columns and not np.isnan(df_price['거래량'].iloc[-1]):
-            recent_volume = df_price['거래량'].iloc[-1]
-            avg_volume = df_price['거래량'].rolling(window=20).mean().iloc[-1]
-            if recent_volume > 1.5 * avg_volume:
-                explanations.append("- 최근 거래량이 평소 대비 매우 높아 활발한 매도세 관측.")
-            elif recent_volume > avg_volume:
-                explanations.append("- 거래량이 평균 이상, 매도 압력 증가 신호.")
-            else:
-                explanations.append("- 거래량 평소 수준, 매도세 강하지 않음.")
-
-        per = info_row.get('PER', np.nan)
-        if per > 30:
-            explanations.append("- PER이 30 이상, 고평가 및 조정 위험 가능성.")
-        if per < 5:
-            explanations.append("- PER 5 이하, 기업 어려움 가능성 주의.")
-
-        pbr = info_row.get('PBR', np.nan)
-        if pbr > 3:
-            explanations.append("- PBR 3 이상, 자산 대비 고평가 위험.")
-        if pbr < 0.5:
-            explanations.append("- PBR 0.5 이하, 저평가이나 가치 하락 가능성.")
-
-        div = info_row.get('배당률', np.nan)
-        if div >= 5:
-            explanations.append("- 배당률 5% 이상, 안정적 현금흐름이나 배당락 변동성 주의.")
-        elif div < 1:
-            explanations.append("- 배당률 낮아 주가 상승 중심 투자 대상.")
-
-        explanations.append("종합적으로, 기술적 지표와 재무 상태를 고려한 합리적 매도 시점입니다. 시장 상황과 개인 투자 성향을 반드시 고려하세요.")
-
-        for line in explanations:
-            st.markdown(f"- {line}")
-    else:
-        st.markdown("추천 매도가 산출 조건 미충족으로 근거 설명 없음.")
-
+# 매수 가격 입력 및 추천 매도가 표시
 st.subheader("📥 매수 가격 입력")
 input_buy_price = st.number_input("현재 매수 가격을 입력하세요", min_value=0, step=100)
 
@@ -247,6 +188,53 @@ with c2:
     else:
         st.metric("추천 매도가", "추천가 없음")
 
+# 추천 매도가 근거 상세 설명
+if recommended_sell:
+    st.markdown("### 💡 추천 매도 가격 근거 상세 분석")
+    explanations = []
+
+    profit_ratio = (recommended_sell - input_buy_price) / input_buy_price * 100
+    if profit_ratio >= 15:
+        explanations.append(f"- 매수가 대비 {profit_ratio:.2f}% 이상 수익 실현 구간입니다. 단기 고수익 실현 타이밍으로 전문가들이 권장하는 매도 시점입니다.")
+    elif profit_ratio >= 5:
+        explanations.append(f"- 매수가 대비 약 {profit_ratio:.2f}% 수익권으로 분할 매도를 권장합니다.")
+    elif profit_ratio > 0:
+        explanations.append(f"- 매수가 대비 소폭 수익 상태이나 추가 상승 가능성도 있어 신중한 판단이 필요합니다.")
+    else:
+        explanations.append(f"- 현재 매수가 대비 손실 구간입니다. 손절 또는 모니터링 전략이 필요합니다.")
+
+    if 'MACD' in df_price.columns and 'MACD_SIGNAL' in df_price.columns:
+        macd_latest = df_price['MACD'].iloc[-1]
+        signal_latest = df_price['MACD_SIGNAL'].iloc[-1]
+        if macd_latest < signal_latest:
+            explanations.append("- MACD가 Signal선 아래에 위치해 단기 하락 신호로 작용하고 있습니다.")
+        else:
+            explanations.append("- MACD가 Signal선을 상향 돌파해 단기 상승 모멘텀을 보여주고 있습니다.")
+
+    if 'RSI_14' in df_price.columns:
+        rsi_latest = df_price['RSI_14'].iloc[-1]
+        if rsi_latest > 70:
+            explanations.append("- RSI가 70 이상으로 과매수 상태이며, 조정 가능성이 있습니다.")
+        elif rsi_latest < 30:
+            explanations.append("- RSI가 30 이하로 과매도 상태이지만, 매도 시점에서는 신중해야 합니다.")
+
+    if '거래량' in df_price.columns:
+        recent_volume = df_price['거래량'].iloc[-1]
+        avg_volume = df_price['거래량'].rolling(window=20).mean().iloc[-1]
+        if recent_volume > avg_volume * 1.5:
+            explanations.append("- 최근 거래량이 평균 대비 크게 증가하여 매도 압력이 강해지고 있음을 시사합니다.")
+        elif recent_volume > avg_volume:
+            explanations.append("- 거래량이 평균 이상으로 다소 매도세가 증가하는 추세입니다.")
+
+    explanations.append("종합적으로, 추천 매도 가격은 기술적 지표와 매수 가격 대비 수익률, 거래량 변동성 등을 반영한 전문가 의견입니다.")
+    explanations.append("시장 변동성 및 개인 투자 성향을 함께 고려해 신중한 투자 판단을 하시기 바랍니다.")
+
+    for line in explanations:
+        st.markdown(f"- {line}")
+else:
+    st.markdown("추천 매도가가 산출되지 않아 근거 설명을 제공할 수 없습니다.")
+
+# 종목 평가 및 투자 전략 (전문가 의견) - 상세 & 초보 친화적
 st.subheader("📋 종목 평가 및 투자 전략 (전문가 의견)")
 try:
     eval_lines = []
