@@ -77,12 +77,8 @@ def update_database():
 
     csv_path = "filtered_stocks.csv"
     try:
-        if os.path.exists(csv_path):
-            df.to_csv(csv_path, index=False, encoding='utf-8-sig')
-            print(f"{csv_path} 파일 갱신 완료!", file=sys.stderr)
-        else:
-            df.to_csv(csv_path, index=False, encoding='utf-8-sig')
-            print(f"{csv_path} 파일 생성 완료!", file=sys.stderr)
+        df.to_csv(csv_path, index=False, encoding='utf-8-sig')
+        print(f"{csv_path} 파일 생성/갱신 완료!", file=sys.stderr)
     except Exception as e:
         print(f"{csv_path} 저장 실패: {e}", file=sys.stderr)
 
