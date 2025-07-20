@@ -17,7 +17,7 @@ from price_utils import calculate_recommended_sell
 from datetime import datetime
 from pykrx import stock
 
-3등분 columns 사용해 중앙 열에 이미지 배치 
+#3등분 columns 사용해 중앙 열에 이미지 배치 
 
 col1, col2, col3 = st.columns([1, 6, 1])
 
