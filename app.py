@@ -299,7 +299,7 @@ if st.button(f"🔄 {selected} 데이터만 즉시 갱신"):
         sys.path.append(os.getcwd())
 
     from update_stock_database import update_single_stock
-        try:
+    try:
         update_single_stock(code)
         st.success(f"{selected} 데이터만 갱신 완료!")
         st.cache_data.clear()
