@@ -309,4 +309,7 @@ if st.button(f"🔄 {selected} 데이터만 즉시 갱신"):
 st.subheader("최신 뉴스")
 news = fetch_google_news(selected)
 if news:
-    for
+    for n in news:
+        st.markdown(f"- {n}")
+else:
+    st.info("뉴스 정보 없음")
