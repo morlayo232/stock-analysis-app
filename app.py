@@ -16,6 +16,7 @@ from calculate_indicators import add_tech_indicators
 from price_utils import calculate_recommended_sell
 from datetime import datetime
 from pykrx import stock
+from update_stock_database import update_single_stock  # 최상단 임포트로 변경
 
 # 3등분 columns 사용해 중앙 열에 이미지 배치
 col1, col2, col3 = st.columns([1, 6, 1])
@@ -32,7 +33,6 @@ with col2:
 
 with col3:
     st.write("")
-
 
 
 @st.cache_data(ttl=3600, show_spinner=False)
@@ -55,6 +55,7 @@ def load_filtered_data():
             return df
         except Exception:
             return pd.DataFrame()
+
 
 style = st.sidebar.radio("투자 성향", ["aggressive", "stable", "dividend"], horizontal=True)
 
@@ -293,7 +294,6 @@ except Exception:
 
 # 개별 갱신 버튼 및 처리
 if st.button(f"🔄 {selected} 데이터만 즉시 갱신"):
-    from update_stock_database import update_single_stock
     try:
         update_single_stock(code)
         st.success(f"{selected} 데이터만 갱신 완료!")
@@ -309,7 +309,4 @@ if st.button(f"🔄 {selected} 데이터만 즉시 갱신"):
 st.subheader("최신 뉴스")
 news = fetch_google_news(selected)
 if news:
-    for n in news:
-        st.markdown(f"- {n}")
-else:
-    st.info("뉴스 정보 없음")
+    for
