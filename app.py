@@ -20,21 +20,18 @@ from pykrx import stock
 st.set_page_config(page_title="Investment Manager", layout="wide")
 
 # 로고와 타이틀을 가로로 배치하고 스타일 조정
-col_logo, col_title = st.columns([2, 4])
+col_logo, col_title = st.columns([1, 2])
 
 with col_logo:
     try:
         logo_img = Image.open("logo_tynex.png")
-        st.image(logo_img, width=120)
+        st.image(logo_img, width=150)
     except Exception:
         st.write("로고 이미지 로드 실패")
 
 with col_title:
     st.markdown(
         """
-        <h1 style='color:#003366; font-family:"Segoe UI", Tahoma, Geneva, Verdana, sans-serif; font-weight:bold; margin-bottom:0px;'>
-            TYnex
-        </h1>
         <h3 style='color:#0055a5; font-family:"Segoe UI", Tahoma, Geneva, Verdana, sans-serif; margin-top:0px;'>
             Investment Manager
         </h3>
