@@ -20,7 +20,7 @@ from pykrx import stock
 st.set_page_config(page_title="Investment Manager", layout="wide")
 
 # 로고 중앙 배치
-col1, col2, col3 = st.columns([1, 5, 1])  # 가운데 칸 넓게
+col1, col2, col3 = st.columns([2, 5, 2])  # 가운데 칸 넓게
 with col1:
     st.write("     ")  # 빈칸
 with col2:
