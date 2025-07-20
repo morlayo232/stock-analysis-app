@@ -17,19 +17,22 @@ from price_utils import calculate_recommended_sell
 from datetime import datetime
 from pykrx import stock
 
-st.set_page_config(page_title="Investment Manager", layout="wide")
+# 3등분 columns 사용해 중앙 열에 이미지 배치
+col1, col2, col3 = st.columns([1, 2, 1])
 
-img_url = "https://raw.githubusercontent.com/username/repo/main/logo_tynex.png"
+with col1:
+    st.write("")
 
-# 이미지 중앙 배치 - st.markdown과 HTML 활용
-st.markdown(
-    f"""
-    <div style='text-align: center;'>
-        <img src="{img_url}" width="200" />
-    </div>
-    """,
-    unsafe_allow_html=True
-)
+with col2:
+    try:
+        logo_img = Image.open("logo_tynex.png")  # 로컬 파일
+        st.image(logo_img, width=250)  # 크기 조절
+    except Exception:
+        st.write("로고 이미지 로드 실패")
+
+with col3:
+    st.write("")
+
 
 
 @st.cache_data(ttl=3600, show_spinner=False)
