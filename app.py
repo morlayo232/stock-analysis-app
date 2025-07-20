@@ -17,8 +17,18 @@ from price_utils import calculate_recommended_sell  # 신규 추가
 from datetime import datetime
 from pykrx import stock
 
-st.set_page_config(page_title="투자 매니저", layout="wide")
-st.title("투자 매니저")
+st.set_page_config(page_title="TYnex Investment Manager", layout="wide")
+
+# 메인 타이틀과 로고 배치
+col_logo, col_title = st.columns([1,4])
+with col_logo:
+    try:
+        logo_img = Image.open("logo_tynex.png")
+        st.image(logo_img, width=120)
+    except Exception:
+        st.write("로고 이미지 로드 실패")
+with col_title:
+    st.markdown("<h1 style='margin-top: 35px;'>TYnex Investment Manager</h1>", unsafe_allow_html=True)
 
 @st.cache_data(ttl=3600, show_spinner=False)
 def load_filtered_data():
@@ -51,13 +61,6 @@ if not isinstance(raw_df, pd.DataFrame) or raw_df.empty:
 scored_df = finalize_scores(raw_df, style=style)
 scored_df["신뢰등급"] = scored_df.apply(assess_reliability, axis=1)
 top10 = scored_df.sort_values("score", ascending=False).head(10)
-
-# 로고 출력 (TOP10 종목 빠른 선택 바로 전)
-try:
-    logo_img = Image.open("logo_tynex.png")
-    st.image(logo_img, width=200, caption="TYnex Investment Manager")
-except Exception:
-    st.write("로고 이미지 로드 실패")
 
 st.subheader("TOP10 종목 빠른 선택")
 quick_selected = st.selectbox("TOP10 종목명", top10["종목명"].tolist(), key="top10_selectbox")
@@ -164,6 +167,66 @@ else:
             st.metric("추천 매도가", msg)
         else:
             st.metric("추천 매도가", "조건 미충족")
+
+    # 추천 매도가 근거 상세 설명
+    if sell_price is not None:
+        st.markdown("### 💡 추천 매도 가격 근거 상세 분석")
+        explanations = []
+
+        explanations.append("- MACD가 Signal선을 하향 돌파하여 단기 매도세 강화를 시사합니다.")
+        if 'RSI_14' in df_price.columns and not np.isnan(df_price['RSI_14'].iloc[-1]):
+            rsi_latest = df_price['RSI_14'].iloc[-1]
+            if rsi_latest > 75:
+                explanations.append("- RSI가 75 이상으로 매우 과매수 상태, 조정 가능성 큼.")
+            elif rsi_latest > 70:
+                explanations.append("- RSI가 70 이상으로 과매수 구간, 단기 조정 가능성 존재.")
+            elif rsi_latest < 40:
+                explanations.append("- RSI가 40 이하로 저평가 상태이나 현재는 매도 신호 우선.")
+        if buy_price is not None:
+            profit_ratio = (sell_price - buy_price) / buy_price * 100
+            if profit_ratio >= 15:
+                explanations.append(f"- 매수가 대비 {profit_ratio:.2f}% 수익 실현 구간, 고수익 실현 타이밍.")
+            elif profit_ratio >= 5:
+                explanations.append(f"- 약 {profit_ratio:.2f}% 수익권, 분할 매도 전략 권장.")
+            elif profit_ratio > 0:
+                explanations.append(f"- 소폭 수익, 추가 상승 기대 시 신중 판단 필요.")
+            else:
+                explanations.append(f"- 손실 구간, 손절 또는 모니터링 필요.")
+
+        if '거래량' in df_price.columns and not np.isnan(df_price['거래량'].iloc[-1]):
+            recent_volume = df_price['거래량'].iloc[-1]
+            avg_volume = df_price['거래량'].rolling(window=20).mean().iloc[-1]
+            if recent_volume > 1.5 * avg_volume:
+                explanations.append("- 최근 거래량이 평소 대비 매우 높아 활발한 매도세 관측.")
+            elif recent_volume > avg_volume:
+                explanations.append("- 거래량이 평균 이상, 매도 압력 증가 신호.")
+            else:
+                explanations.append("- 거래량 평소 수준, 매도세 강하지 않음.")
+
+        per = info_row.get('PER', np.nan)
+        if per > 30:
+            explanations.append("- PER이 30 이상, 고평가 및 조정 위험 가능성.")
+        if per < 5:
+            explanations.append("- PER 5 이하, 기업 어려움 가능성 주의.")
+
+        pbr = info_row.get('PBR', np.nan)
+        if pbr > 3:
+            explanations.append("- PBR 3 이상, 자산 대비 고평가 위험.")
+        if pbr < 0.5:
+            explanations.append("- PBR 0.5 이하, 저평가이나 가치 하락 가능성.")
+
+        div = info_row.get('배당률', np.nan)
+        if div >= 5:
+            explanations.append("- 배당률 5% 이상, 안정적 현금흐름이나 배당락 변동성 주의.")
+        elif div < 1:
+            explanations.append("- 배당률 낮아 주가 상승 중심 투자 대상.")
+
+        explanations.append("종합적으로, 기술적 지표와 재무 상태를 고려한 합리적 매도 시점입니다. 시장 상황과 개인 투자 성향을 반드시 고려하세요.")
+
+        for line in explanations:
+            st.markdown(f"- {line}")
+    else:
+        st.markdown("추천 매도가 산출 조건 미충족으로 근거 설명 없음.")
 
 st.subheader("📥 매수 가격 입력")
 input_buy_price = st.number_input("현재 매수 가격을 입력하세요", min_value=0, step=100)
