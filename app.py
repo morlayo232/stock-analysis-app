@@ -23,7 +23,7 @@ st.set_page_config(page_title="Investment Manager", layout="wide")
 # 로고를 중앙에 크게 배치하고 타이틀 이름은 삭제
 try:
     logo_img = Image.open("logo_tynex.png")
-    st.image(logo_img, width=300, use_column_width=False)
+    st.image(logo_img, width=300, use_container_width=False)
 except Exception:
     st.write("로고 이미지 로드 실패")
 
