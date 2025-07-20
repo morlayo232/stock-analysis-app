@@ -293,7 +293,13 @@ except Exception:
 
 # 개별 갱신 버튼 및 처리
 if st.button(f"🔄 {selected} 데이터만 즉시 갱신"):
-    from update_stock_database import update_single_stock
+import sys
+import os
+print("Current working dir:", os.getcwd())
+
+sys.path.append(os.path.abspath("."))
+
+from update_stock_database import update_single_stock
     try:
         update_single_stock(code)
         st.success(f"{selected} 데이터만 갱신 완료!")
