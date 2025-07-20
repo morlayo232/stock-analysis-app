@@ -6,6 +6,7 @@ import numpy as np
 import os
 import sys
 from PIL import Image
+from update_stock_database import update_single_stock
 
 sys.path.append(os.path.abspath("modules"))
 
@@ -293,7 +294,7 @@ except Exception:
 
 # 개별 갱신 버튼 및 처리
 if st.button(f"🔄 {selected} 데이터만 즉시 갱신"):
-    from update_stock_database import update_single_stock
+    
     try:
         update_single_stock(code)
         st.success(f"{selected} 데이터만 갱신 완료!")
