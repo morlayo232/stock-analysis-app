@@ -26,7 +26,7 @@ with col1:
 with col2:
     try:
         logo_img = Image.open("logo_tynex.png")  # 로컬 파일
-        st.image(logo_img, width=310)  # 크기 조절
+        st.image(logo_img, width=350)  # 크기 조절
     except Exception:
         st.write("로고 이미지 로드 실패")
 
