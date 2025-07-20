@@ -20,13 +20,13 @@ from pykrx import stock
 st.set_page_config(page_title="Investment Manager", layout="wide")
 
 # 로고 중앙 배치
-col1, col2, col3 = st.columns([2, 5, 2])  # 가운데 칸 넓게
+col1, col2, col3 = st.columns([1, 8, 1])  # 가운데 칸 넓게
 with col1:
     st.write("     ")  # 빈칸
 with col2:
     try:
         logo_img = Image.open("logo_tynex.png")
-        st.image(logo_img, width=300)
+        st.image(logo_img, width=280)
     except Exception:
         st.write("로고 이미지 로드 실패")
 with col3:
