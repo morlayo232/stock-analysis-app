@@ -14,9 +14,9 @@ from fetch_news import fetch_google_news
 from chart_utils import plot_price_rsi_macd
 from calculate_indicators import add_tech_indicators
 from price_utils import calculate_recommended_sell
+from update_stock_database import update_single_stock  # 최상단 임포트로 변경
 from datetime import datetime
 from pykrx import stock
-from update_stock_database import update_single_stock  # 최상단 임포트로 변경
 
 # 3등분 columns 사용해 중앙 열에 이미지 배치
 col1, col2, col3 = st.columns([1, 6, 1])
