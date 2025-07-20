@@ -14,7 +14,6 @@ from fetch_news import fetch_google_news
 from chart_utils import plot_price_rsi_macd
 from calculate_indicators import add_tech_indicators
 from price_utils import calculate_recommended_sell
-from update_stock_database import update_single_stock  # 최상단 임포트로 변경
 from datetime import datetime
 from pykrx import stock
 
@@ -294,7 +293,13 @@ except Exception:
 
 # 개별 갱신 버튼 및 처리
 if st.button(f"🔄 {selected} 데이터만 즉시 갱신"):
-    try:
+    import sys
+    import os
+    if os.getcwd() not in sys.path:
+        sys.path.append(os.getcwd())
+
+    from update_stock_database import update_single_stock
+        try:
         update_single_stock(code)
         st.success(f"{selected} 데이터만 갱신 완료!")
         st.cache_data.clear()
