@@ -6,6 +6,9 @@ import numpy as np
 import os
 import sys
 from PIL import Image
+
+sys.path.append(os.path.abspath("."))
+
 from update_stock_database import update_single_stock
 
 sys.path.append(os.path.abspath("modules"))
