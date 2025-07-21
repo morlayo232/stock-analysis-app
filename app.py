@@ -7,10 +7,10 @@ import os
 import sys
 from PIL import Image
 
-# app.py 상단 임포트에 추가
-from modules.evaluate_stock import evaluate_stock
 
 sys.path.append(os.path.abspath("modules"))
+# app.py 상단 임포트에 추가
+from modules.evaluate_stock import evaluate_stock
 
 from score_utils import finalize_scores, assess_reliability
 from fetch_news import fetch_google_news
