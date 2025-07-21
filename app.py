@@ -6,10 +6,9 @@ import numpy as np
 import os
 import sys
 from PIL import Image
-
+from modules.evaluate_stock import evaluate_stock
 
 sys.path.append(os.path.abspath("modules"))
-from evaluate_stock import evaluate_stock
 from score_utils import finalize_scores, assess_reliability
 from fetch_news import fetch_google_news
 from chart_utils import plot_price_rsi_macd
