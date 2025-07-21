@@ -33,7 +33,30 @@ with col2:
 with col3:
     st.write("")
 
-
+# 점수 계산 설명
+def show_score_formula(style):
+    if style == "aggressive":
+        st.markdown("""
+        #### 공격적 투자 성향 점수 계산식
+        - score = -0.25 * z_PER - 0.2 * z_PBR + 0.2 * z_EPS + 0.1 * z_BPS + 0.1 * z_배당률 + 0.15 * z_거래대금
+        - EPS가 양수일 경우 0.1점 가산
+        - z_변수는 표준화 지표(Z-Score)입니다.
+        """)
+    elif style == "stable":
+        st.markdown("""
+        #### 안정적 투자 성향 점수 계산식
+        - score = -0.3 * z_PER - 0.35 * z_PBR + 0.2 * z_BPS + 0.1 * z_배당률 + 0.05 * z_거래대금
+        - BPS가 중간값 이상일 경우 0.1점 가산
+        """)
+    elif style == "dividend":
+        st.markdown("""
+        #### 배당형 투자 성향 점수 계산식
+        - score = 0.7 * z_배당률 - 0.15 * z_PBR - 0.1 * z_PER + 0.05 * z_거래대금
+        - 배당률 3% 이상일 경우 0.15점 가산
+        """)
+    else:
+        st.markdown("투자 성향에 맞는 점수 계산식이 없습니다.")
+        
 @st.cache_data(ttl=3600, show_spinner=False)
 def load_filtered_data():
     try:
@@ -72,6 +95,8 @@ quick_selected = st.selectbox("TOP10 종목명", top10["종목명"].tolist(), ke
 
 st.subheader(f"투자 성향({style}) 통합 점수 TOP 10")
 st.dataframe(top10[["종목명","종목코드","현재가","PER","PBR","EPS","BPS","배당률","score","신뢰등급"]])
+
+show_score_formula(style)
 
 st.subheader("종목 검색")
 keyword = st.text_input("종목명을 입력하세요")
