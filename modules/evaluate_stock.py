@@ -146,7 +146,7 @@ def evaluate_stock_extended_1(scored_df, selected, df_price):
     )
 
     def evaluate_stock_extended_2(scored_df, selected, df_price):
-    eval_lines = []
+            eval_lines = []
 
     # 13. 최근 주가 변동성 확인
     if "종가" in df_price.columns:
