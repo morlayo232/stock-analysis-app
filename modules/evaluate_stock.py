@@ -1,13 +1,3 @@
-def evaluate_stock(scored_df, selected, df_price):
-    eval_lines = []
-    eval_lines.extend(evaluate_stock_extended_1(scored_df, selected, df_price))
-    eval_lines.extend(evaluate_stock_extended_2(scored_df, selected, df_price))
-    eval_lines.extend(evaluate_stock_extended_3(scored_df, selected, df_price))
-    eval_lines.extend(evaluate_stock_extended_4(scored_df, selected, df_price))
-    eval_lines.extend(evaluate_stock_extended_5(scored_df, selected, df_price))
-    eval_lines.extend(evaluate_stock_extended_6(scored_df, selected, df_price))
-    return eval_lines
-
 def evaluate_stock_extended_1(scored_df, selected, df_price):
     eval_lines = []
 
@@ -636,4 +626,14 @@ def evaluate_stock_extended_7(scored_df, selected, df_price):
     for line in eval_lines:
         st.markdown(f"- {line}")
 
+    return eval_lines
+
+def evaluate_stock(scored_df, selected, df_price):
+    eval_lines = []
+    eval_lines.extend(evaluate_stock_extended_1(scored_df, selected, df_price))
+    eval_lines.extend(evaluate_stock_extended_2(scored_df, selected, df_price))
+    eval_lines.extend(evaluate_stock_extended_3(scored_df, selected, df_price))
+    eval_lines.extend(evaluate_stock_extended_4(scored_df, selected, df_price))
+    eval_lines.extend(evaluate_stock_extended_5(scored_df, selected, df_price))
+    eval_lines.extend(evaluate_stock_extended_6(scored_df, selected, df_price))
     return eval_lines
