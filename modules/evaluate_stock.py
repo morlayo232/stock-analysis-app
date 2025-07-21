@@ -1,3 +1,4 @@
+import numpy as np
 def evaluate_stock_extended_1(scored_df, selected, df_price):
     eval_lines = []
 
