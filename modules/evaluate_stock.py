@@ -146,8 +146,8 @@ def evaluate_stock_extended_1(scored_df, selected, df_price):
         "ℹ️ [시장상황] 현재 시장 및 업종 동향을 고려해 투자 시기를 신중히 판단하세요."
     )
 
-    def evaluate_stock_extended_2(scored_df, selected, df_price):
-            eval_lines = []
+def evaluate_stock_extended_2(scored_df, selected, df_price):
+    eval_lines = []
 
     # 13. 최근 주가 변동성 확인
     if "종가" in df_price.columns:
