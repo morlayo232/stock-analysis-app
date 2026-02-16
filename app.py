@@ -1,21 +1,26 @@
 # app.py
 
-import streamlit as st
-import pandas as pd
-import numpy as np
+import json
 import os
 import sys
+from datetime import datetime
+
+import numpy as np
+import pandas as pd
+import streamlit as st
 from PIL import Image
+from pykrx import stock
+
 from modules.evaluate_stock import evaluate_stock
 
 sys.path.append(os.path.abspath("modules"))
-from score_utils import finalize_scores, assess_reliability
+from score_utils import assess_reliability, finalize_scores
 from fetch_news import fetch_google_news
 from chart_utils import plot_price_rsi_macd
 from calculate_indicators import add_tech_indicators
 from price_utils import calculate_recommended_sell
-from datetime import datetime
-from pykrx import stock
+
+NOTES_FILE = "notes.json"
 
 # 3등분 columns 사용해 중앙 열에 이미지 배치
 col1, col2, col3 = st.columns([1, 6, 1])
@@ -56,6 +61,148 @@ def show_score_formula(style):
         """)
     else:
         st.markdown("투자 성향에 맞는 점수 계산식이 없습니다.")
+
+
+@st.cache_data(ttl=3600, show_spinner=False)
+def load_market_universe():
+    kospi = set(stock.get_market_ticker_list(market="KOSPI"))
+    kosdaq = set(stock.get_market_ticker_list(market="KOSDAQ"))
+    return kospi, kosdaq
+
+
+@st.cache_data(ttl=1800, show_spinner=False)
+def load_price_window(code: str, days: int = 180):
+    end = datetime.today()
+    start = end - pd.Timedelta(days=days)
+    df = stock.get_market_ohlcv_by_date(start.strftime("%Y%m%d"), end.strftime("%Y%m%d"), code)
+    if df is None or df.empty:
+        return pd.DataFrame()
+    df = df.reset_index()
+    if "날짜" in df.columns:
+        df = df.set_index("날짜")
+    df = add_tech_indicators(df)
+    return df
+
+
+def _safe_norm(value: float, scale: float = 1.0):
+    if value is None or np.isnan(value):
+        return 0.0
+    return float(np.tanh(value / scale))
+
+
+def compute_momentum_supply(df_price: pd.DataFrame):
+    if df_price is None or df_price.empty or "종가" not in df_price.columns:
+        return 0.0, 0.0, 0.0, "데이터 부족"
+
+    price = df_price["종가"]
+    volume = df_price.get("거래량", pd.Series([np.nan] * len(df_price)))
+    momentum_short = price.iloc[-1] / price.iloc[-20] - 1 if len(price) > 20 else 0
+    momentum_mid = price.iloc[-1] / price.iloc[-60] - 1 if len(price) > 60 else 0
+    slope_base = price.tail(30)
+    slope = np.polyfit(np.arange(len(slope_base)), slope_base, 1)[0] if len(slope_base) >= 2 else 0
+    momentum_score = (
+        0.45 * _safe_norm(momentum_short, 0.15)
+        + 0.35 * _safe_norm(momentum_mid, 0.25)
+        + 0.2 * _safe_norm(slope, price.tail(30).mean() if len(price) >= 30 else 1)
+    )
+
+    signed_volume = np.sign(price.diff().fillna(0)) * volume.fillna(0)
+    obv = signed_volume.cumsum()
+    obv_section = obv.tail(30)
+    obv_slope = np.polyfit(np.arange(len(obv_section)), obv_section, 1)[0] if len(obv_section) >= 2 else 0
+    volume_ratio = volume.iloc[-1] / volume.tail(20).mean() - 1 if len(volume.dropna()) >= 20 else 0
+    supply_score = 0.6 * _safe_norm(obv_slope, 1e9) + 0.4 * _safe_norm(volume_ratio, 1.5)
+
+    pattern_score = 0.0
+    pattern_comment = []
+    if "RSI_14" in df_price.columns and pd.notna(df_price["RSI_14"].iloc[-1]):
+        rsi_value = df_price["RSI_14"].iloc[-1]
+        if rsi_value < 35:
+            pattern_score += 0.25
+            pattern_comment.append("RSI 과매도 구간")
+        elif rsi_value > 65:
+            pattern_score -= 0.2
+            pattern_comment.append("RSI 과매수 경계")
+    if "MACD" in df_price.columns and "MACD_SIGNAL" in df_price.columns:
+        macd_diff = df_price["MACD"].iloc[-1] - df_price["MACD_SIGNAL"].iloc[-1]
+        pattern_score += 0.25 if macd_diff > 0 else -0.15
+        pattern_comment.append("MACD 상승" if macd_diff > 0 else "MACD 하락")
+    if "EMA_20" in df_price.columns:
+        ema20 = df_price["EMA_20"].iloc[-1]
+        last_close = price.iloc[-1]
+        if last_close > ema20:
+            pattern_score += 0.15
+            pattern_comment.append("EMA20 상방")
+        else:
+            pattern_score -= 0.1
+            pattern_comment.append("EMA20 하방")
+
+    return float(momentum_score), float(supply_score), float(pattern_score), ", ".join(pattern_comment)
+
+
+@st.cache_data(ttl=1800, show_spinner=False)
+def compute_news_score(query: str, max_items: int = 8):
+    titles = fetch_google_news(query, max_items=max_items)
+    if not titles:
+        return 0.0, []
+    positive_keywords = ["급등", "호재", "성장", "수주", "상승", "최대"]
+    negative_keywords = ["하락", "리스크", "적자", "경고", "실패", "연기"]
+    score = 0
+    for title in titles:
+        if any(k in title for k in positive_keywords):
+            score += 1
+        if any(k in title for k in negative_keywords):
+            score -= 1
+    normalized = np.clip(score / len(titles), -1, 1)
+    return float(normalized), titles
+
+
+def load_notes():
+    if not os.path.exists(NOTES_FILE):
+        return {}
+    try:
+        with open(NOTES_FILE, "r", encoding="utf-8") as f:
+            return json.load(f)
+    except Exception:
+        return {}
+
+
+def save_notes(notes: dict):
+    with open(NOTES_FILE, "w", encoding="utf-8") as f:
+        json.dump(notes, f, ensure_ascii=False, indent=2)
+
+
+def build_market_top(df: pd.DataFrame, market: str):
+    subset = df[df["시장"] == market].copy()
+    if subset.empty:
+        return pd.DataFrame()
+    subset = subset.sort_values("score", ascending=False).head(30).copy()
+    std = subset["score"].std()
+    mean = subset["score"].mean()
+    subset["펀더멘털점수"] = (subset["score"] - mean) / (std if std else 1)
+
+    for idx, row in subset.iterrows():
+        price_window = load_price_window(row["종목코드"])
+        momentum_score, supply_score, pattern_score, pattern_comment = compute_momentum_supply(price_window)
+        news_score, headlines = compute_news_score(row["종목명"])
+
+        composite = (
+            0.5 * subset.at[idx, "펀더멘털점수"]
+            + 0.2 * momentum_score
+            + 0.15 * supply_score
+            + 0.1 * news_score
+            + 0.05 * pattern_score
+        )
+
+        subset.at[idx, "모멘텀점수"] = momentum_score
+        subset.at[idx, "수급점수"] = supply_score
+        subset.at[idx, "뉴스점수"] = news_score
+        subset.at[idx, "패턴점수"] = pattern_score
+        subset.at[idx, "패턴요약"] = pattern_comment
+        subset.at[idx, "주요뉴스"] = " | ".join(headlines[:3]) if headlines else "-"
+        subset.at[idx, "통합점수"] = composite
+
+    return subset.sort_values("통합점수", ascending=False).head(10)
         
 @st.cache_data(ttl=3600, show_spinner=False)
 def load_filtered_data():
@@ -79,6 +226,7 @@ def load_filtered_data():
             return pd.DataFrame()
 
 
+
 style = st.sidebar.radio("투자 성향", ["aggressive", "stable", "dividend"], horizontal=True)
 
 raw_df = load_filtered_data()
@@ -88,53 +236,109 @@ if not isinstance(raw_df, pd.DataFrame) or raw_df.empty:
 
 scored_df = finalize_scores(raw_df, style=style)
 scored_df["신뢰등급"] = scored_df.apply(assess_reliability, axis=1)
-top10 = scored_df.sort_values("score", ascending=False).head(10)
+kospi_codes, kosdaq_codes = load_market_universe()
+scored_df["시장"] = scored_df["종목코드"].apply(
+    lambda x: "KOSPI" if x in kospi_codes else ("KOSDAQ" if x in kosdaq_codes else "기타")
+)
 
-st.subheader("TOP10 종목 빠른 선택")
-quick_selected = st.selectbox("TOP10 종목명", top10["종목명"].tolist(), key="top10_selectbox")
+top_kospi = build_market_top(scored_df, "KOSPI")
+top_kosdaq = build_market_top(scored_df, "KOSDAQ")
+overall_top = pd.concat([top_kospi, top_kosdaq], ignore_index=True)
+if overall_top.empty:
+    overall_top = scored_df.sort_values("score", ascending=False).head(10).copy()
+    overall_top["통합점수"] = overall_top["score"]
+else:
+    overall_top = overall_top.sort_values("통합점수", ascending=False).head(10)
 
-st.subheader(f"투자 성향({style}) 통합 점수 TOP 10")
-st.dataframe(top10[["종목명","종목코드","현재가","PER","PBR","EPS","BPS","배당률","score","신뢰등급"]])
+st.subheader("시장별 종합 매력도 TOP 10")
+col_kospi, col_kosdaq = st.columns(2)
+with col_kospi:
+    st.caption("KOSPI")
+    if not top_kospi.empty:
+        st.dataframe(
+            top_kospi[
+                [
+                    "종목명",
+                    "종목코드",
+                    "통합점수",
+                    "모멘텀점수",
+                    "수급점수",
+                    "뉴스점수",
+                    "패턴요약",
+                    "주요뉴스",
+                ]
+            ]
+        )
+    else:
+        st.info("KOSPI 데이터가 부족합니다.")
+with col_kosdaq:
+    st.caption("KOSDAQ")
+    if not top_kosdaq.empty:
+        st.dataframe(
+            top_kosdaq[
+                [
+                    "종목명",
+                    "종목코드",
+                    "통합점수",
+                    "모멘텀점수",
+                    "수급점수",
+                    "뉴스점수",
+                    "패턴요약",
+                    "주요뉴스",
+                ]
+            ]
+        )
+    else:
+        st.info("KOSDAQ 데이터가 부족합니다.")
 
 show_score_formula(style)
 
+st.subheader("TOP10 종목 빠른 선택")
+quick_selected = st.selectbox("시장별 매력도 TOP10", overall_top["종목명"].tolist(), key="top10_selectbox")
+
 st.subheader("종목 검색")
 keyword = st.text_input("종목명을 입력하세요")
+market_filter = st.selectbox("시장 필터", ["전체", "KOSPI", "KOSDAQ", "기타"], index=0)
+
+filtered_df = scored_df.copy()
+if market_filter != "전체":
+    filtered_df = filtered_df[filtered_df["시장"] == market_filter]
 
 if keyword:
-    filtered = scored_df[scored_df["종목명"].str.contains(keyword, case=False, na=False)]
-    select_candidates = filtered["종목명"].tolist()
-else:
+    filtered_df = filtered_df[filtered_df["종목명"].str.contains(keyword, case=False, na=False)]
+
+select_candidates = filtered_df["종목명"].tolist()
+if not select_candidates:
     select_candidates = [quick_selected] if quick_selected else scored_df["종목명"].tolist()
 
-if select_candidates:
-    selected = st.selectbox("종목 선택", select_candidates, index=0, key="main_selectbox")
-    code = scored_df[scored_df["종목명"] == selected]["종목코드"].values[0]
-else:
-    st.warning("해당 종목이 없습니다.")
-    st.stop()
+selected = st.selectbox("종목 선택", select_candidates, index=0, key="main_selectbox")
+code = scored_df[scored_df["종목명"] == selected]["종목코드"].values[0]
+info_row = scored_df[scored_df["종목명"] == selected].iloc[0]
 
-st.subheader("📊 최신 재무 정보")
-try:
-    info_row = scored_df[scored_df["종목명"] == selected].iloc[0]
-    cols = st.columns(6)
-    cols[0].metric("PER", f"{info_row['PER']:.2f}" if pd.notna(info_row['PER']) else "-")
-    cols[1].metric("PBR", f"{info_row['PBR']:.2f}" if pd.notna(info_row['PBR']) else "-")
-    cols[2].metric("EPS", f"{int(info_row['EPS']):,}" if pd.notna(info_row['EPS']) else "-")
-    cols[3].metric("BPS", f"{int(info_row['BPS']):,}" if pd.notna(info_row['BPS']) else "-")
-    cols[4].metric("배당률(%)", f"{info_row['배당률']:.2f}" if pd.notna(info_row['배당률']) else "-")
-    cols[5].metric("점수", f"{info_row['score']:.3f}" if pd.notna(info_row['score']) else "-")
-except Exception:
-    st.info("재무 데이터가 부족합니다.")
+st.subheader("📊 최신 재무/모멘텀 스냅샷")
+fund_std = scored_df["score"].std() or 1
+fund_norm = (info_row["score"] - scored_df["score"].mean()) / fund_std
+df_price = load_price_window(code, days=365)
+momentum_score, supply_score, pattern_score, pattern_comment = compute_momentum_supply(df_price)
+news_score, news_titles = compute_news_score(selected)
 
-start = (datetime.today() - pd.Timedelta(days=365)).strftime("%Y%m%d")
-end = datetime.today().strftime("%Y%m%d")
-df_price = stock.get_market_ohlcv_by_date(start, end, code)
+cols = st.columns(6)
+cols[0].metric("PER", f"{info_row['PER']:.2f}" if pd.notna(info_row['PER']) else "-")
+cols[1].metric("PBR", f"{info_row['PBR']:.2f}" if pd.notna(info_row['PBR']) else "-")
+cols[2].metric("EPS", f"{int(info_row['EPS']):,}" if pd.notna(info_row['EPS']) else "-")
+cols[3].metric("배당률(%)", f"{info_row['배당률']:.2f}" if pd.notna(info_row['배당률']) else "-")
+cols[4].metric("펀더멘털 점수", f"{fund_norm:.2f}")
+cols[5].metric("시장", info_row.get("시장", "-"))
+
+cols_m = st.columns(4)
+cols_m[0].metric("모멘텀", f"{momentum_score:.2f}")
+cols_m[1].metric("수급/OBV", f"{supply_score:.2f}")
+cols_m[2].metric("뉴스", f"{news_score:.2f}")
+cols_m[3].metric("패턴", pattern_comment if pattern_comment else "-", f"{pattern_score:.2f}")
 
 if df_price is None or df_price.empty:
     st.warning("가격 데이터가 없습니다.")
 else:
-    df_price = add_tech_indicators(df_price)
     fig, fig_rsi, fig_macd = plot_price_rsi_macd(df_price)
     fig.update_layout(height=400)
     fig_rsi.update_layout(height=400)
@@ -155,53 +359,62 @@ st.info(
 
 st.subheader("📌 추천 매수가 / 매도가")
 required_cols = ["RSI_14", "MACD", "MACD_SIGNAL", "EMA_20"]
-st.write("추천가 관련 최근 값:", df_price[required_cols + ['종가']].tail())
-
-if not all(col in df_price.columns for col in required_cols):
-    st.info("기술적 지표 컬럼이 부족합니다.")
-elif df_price[required_cols].tail(3).isna().any().any():
-    st.info("기술적 지표의 최근 값에 결측치가 있어 추천가 계산 불가")
+if df_price is None or df_price.empty:
+    st.info("가격 데이터 부족")
 else:
-    recent = df_price.tail(5).reset_index()
-    buy_price = None
-    sell_price = None
-    buy_date = None
-    sell_date = None
-    for i in range(1, len(recent)):
-        if ((recent['RSI_14'].iloc[i] < 35 and recent['RSI_14'].iloc[i-1] < recent['RSI_14'].iloc[i]) or
-            (recent['종가'].iloc[i] < recent['EMA_20'].iloc[i])) and \
-            (recent['MACD'].iloc[i] > recent['MACD_SIGNAL'].iloc[i] and recent['MACD'].iloc[i-1] < recent['MACD_SIGNAL'].iloc[i-1]):
-            buy_price = recent['종가'].iloc[i]
-            buy_date = recent['날짜'].iloc[i] if '날짜' in recent.columns else recent.index[i]
+    st.write("추천가 관련 최근 값:", df_price[required_cols + ['종가']].tail())
 
-        if ((recent['RSI_14'].iloc[i] > 65 and recent['RSI_14'].iloc[i-1] > recent['RSI_14'].iloc[i]) or
-            (recent['종가'].iloc[i] > recent['EMA_20'].iloc[i])) and \
-            (recent['MACD'].iloc[i] < recent['MACD_SIGNAL'].iloc[i] and recent['MACD'].iloc[i-1] > recent['MACD_SIGNAL'].iloc[i-1]):
-            sell_price = recent['종가'].iloc[i]
-            sell_date = recent['날짜'].iloc[i] if '날짜' in recent.columns else recent.index[i]
+    if not all(col in df_price.columns for col in required_cols):
+        st.info("기술적 지표 컬럼이 부족합니다.")
+    elif df_price[required_cols].tail(3).isna().any().any():
+        st.info("기술적 지표의 최근 값에 결측치가 있어 추천가 계산 불가")
+    else:
+        recent = df_price.tail(5).reset_index()
+        buy_price = None
+        sell_price = None
+        buy_date = None
+        sell_date = None
+        for i in range(1, len(recent)):
+            if (
+                (recent['RSI_14'].iloc[i] < 35 and recent['RSI_14'].iloc[i-1] < recent['RSI_14'].iloc[i])
+                or (recent['종가'].iloc[i] < recent['EMA_20'].iloc[i])
+            ) and (
+                recent['MACD'].iloc[i] > recent['MACD_SIGNAL'].iloc[i]
+                and recent['MACD'].iloc[i-1] < recent['MACD_SIGNAL'].iloc[i-1]
+            ):
+                buy_price = recent['종가'].iloc[i]
+                buy_date = recent['날짜'].iloc[i] if '날짜' in recent.columns else recent.index[i]
 
-    c1, c2 = st.columns(2)
-    with c1:
-        if buy_price is not None:
-            msg = f"{buy_price:,.0f} 원"
-            if buy_date:
-                msg += f"\n({buy_date} 신호)"
-            st.metric("추천 매수가", msg)
-        else:
-            st.metric("추천 매수가", "조건 미충족")
-    with c2:
-        if sell_price is not None:
-            msg = f"{sell_price:,.0f} 원"
-            if sell_date:
-                msg += f"\n({sell_date} 신호)"
-            st.metric("추천 매도가", msg)
-        else:
-            st.metric("추천 매도가", "조건 미충족")
+            if (
+                (recent['RSI_14'].iloc[i] > 65 and recent['RSI_14'].iloc[i-1] > recent['RSI_14'].iloc[i])
+                or (recent['종가'].iloc[i] > recent['EMA_20'].iloc[i])
+            ) and (
+                recent['MACD'].iloc[i] < recent['MACD_SIGNAL'].iloc[i]
+                and recent['MACD'].iloc[i-1] > recent['MACD_SIGNAL'].iloc[i-1]
+            ):
+                sell_price = recent['종가'].iloc[i]
+                sell_date = recent['날짜'].iloc[i] if '날짜' in recent.columns else recent.index[i]
 
-# 매수 가격 입력 및 추천 매도가 표시
+        c1, c2 = st.columns(2)
+        with c1:
+            if buy_price is not None:
+                msg = f"{buy_price:,.0f} 원"
+                if buy_date:
+                    msg += f"\n({buy_date} 신호)"
+                st.metric("추천 매수가", msg)
+            else:
+                st.metric("추천 매수가", "조건 미충족")
+        with c2:
+            if sell_price is not None:
+                msg = f"{sell_price:,.0f} 원"
+                if sell_date:
+                    msg += f"\n({sell_date} 신호)"
+                st.metric("추천 매도가", msg)
+            else:
+                st.metric("추천 매도가", "조건 미충족")
+
 st.subheader("📥 매수 가격 입력")
 input_buy_price = st.number_input("현재 매수 가격을 입력하세요", min_value=0, step=100)
-
 recommended_sell = None
 if input_buy_price > 0 and (df_price is not None and not df_price.empty):
     recommended_sell = calculate_recommended_sell(input_buy_price, df_price)
@@ -218,8 +431,7 @@ with c2:
     else:
         st.metric("추천 매도가", "추천가 없음")
 
-# 추천 매도가 근거 상세 설명
-if recommended_sell:
+if recommended_sell and input_buy_price > 0 and df_price is not None and not df_price.empty:
     st.markdown("### 💡 추천 매도 가격 근거 상세 분석")
     explanations = []
 
@@ -256,7 +468,9 @@ if recommended_sell:
         elif recent_volume > avg_volume:
             explanations.append("- 거래량이 평균 이상으로 다소 매도세가 증가하는 추세입니다.")
 
-    explanations.append("종합적으로, 추천 매도 가격은 기술적 지표와 매수 가격 대비 수익률, 거래량 변동성 등을 반영한 전문가 의견입니다.")
+    explanations.append(
+        "종합적으로, 추천 매도 가격은 기술적 지표와 매수 가격 대비 수익률, 거래량 변동성 등을 반영한 전문가 의견입니다."
+    )
     explanations.append("시장 변동성 및 개인 투자 성향을 함께 고려해 신중한 투자 판단을 하시기 바랍니다.")
 
     for line in explanations:
@@ -264,7 +478,6 @@ if recommended_sell:
 else:
     st.markdown("추천 매도가가 산출되지 않아 근거 설명을 제공할 수 없습니다.")
 
-# 종목 평가 및 투자 전략 (전문가 의견) - 상세 & 초보 친화적
 st.subheader("📋 종목 평가 및 투자 전략 (전문가 의견)")
 try:
     eval_lines = evaluate_stock(scored_df, selected, df_price)
@@ -272,31 +485,43 @@ try:
         st.markdown(f"- {line}")
 except Exception:
     st.info("종목 평가 및 투자 전략 정보를 불러올 수 없습니다.")
-    
-# 개별 갱신 버튼 및 처리
+
+st.subheader("🚀 향후 급등 가능성 진단")
+future_potential = (
+    0.35 * momentum_score
+    + 0.2 * supply_score
+    + 0.15 * pattern_score
+    + 0.1 * news_score
+    + 0.2 * fund_norm
+)
+st.metric("급등 가능성 종합", f"{future_potential:.2f}")
+st.caption(
+    "모멘텀/수급/패턴/뉴스/재무 점수를 합산한 지표로, 0.5 이상이면 공격적 매수 모니터링 구간, -0.3 이하면 보수적으로 접근을 권장합니다."
+)
+
+st.subheader("📰 최신 뉴스 & 메모")
+if news_titles:
+    for title in news_titles:
+        st.markdown(f"- {title}")
+else:
+    st.info("뉴스 정보 없음")
+
+notes = load_notes()
+existing_note = notes.get(code, "")
+new_note = st.text_area("개인 메모", value=existing_note, height=120)
+if st.button("💾 메모 저장"):
+    notes[code] = new_note
+    save_notes(notes)
+    st.success("메모를 저장했습니다.")
+
 if st.button(f"🔄 {selected} 데이터만 즉시 갱신"):
-    import sys
-    import os
     if os.getcwd() not in sys.path:
         sys.path.append(os.getcwd())
-
     from update_stock_database import update_single_stock
+
     try:
         update_single_stock(code)
         st.success(f"{selected} 데이터만 갱신 완료!")
         st.cache_data.clear()
-        raw_df = load_filtered_data()
-        scored_df = finalize_scores(raw_df, style=style)
-        scored_df["신뢰등급"] = scored_df.apply(assess_reliability, axis=1)
-        top10 = scored_df.sort_values("score", ascending=False).head(10)
     except Exception:
         st.error("개별 종목 갱신 실패")
-
-# 최신 뉴스
-st.subheader("최신 뉴스")
-news = fetch_google_news(selected)
-if news:
-    for n in news:
-        st.markdown(f"- {n}")
-else:
-    st.info("뉴스 정보 없음")
