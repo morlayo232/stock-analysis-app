@@ -59,9 +59,9 @@ def show_score_formula(style):
         
 @st.cache_data(ttl=3600, show_spinner=False)
 def load_filtered_data():
+    expected = ["종목명", "종목코드", "현재가", "PER", "PBR", "EPS", "BPS", "배당률"]
     try:
         df = pd.read_csv("filtered_stocks.csv", dtype={'종목코드': str})
-        expected = ["종목명", "종목코드", "현재가", "PER", "PBR", "EPS", "BPS", "배당률"]
         for col in expected:
             if col not in df.columns:
                 df[col] = np.nan
